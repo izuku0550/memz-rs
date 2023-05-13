@@ -2,7 +2,7 @@ use16
 org 0x00
 
 section .text       ; text 섹션(세그먼트) 정의
-jmp 0x07C0:start    ; CS 세그먼트 레지스터에 0x07C0을 복사하면서 start 레이블로 이동
+jmp 0x07C0:start    ; cs 세그먼트 레지스터에 0x07C0을 복사하면서 start 레이블로 이동
 
 %include "macro.asm"
 
@@ -16,15 +16,15 @@ start:
 
   clear
 
-  mov si, msg
-  mov cx, msglen
+  mov si, msg ; si가 msg의 시작 주소 저장
+  mov cx, msglen ; cx(count register)에 msglen 저장
 
 start_message:
   .loop:
-    lodsb
+    lodsb ; si가 현재 가리키는 byte를 al에 저장하고 si의 포인터를 1 증가시킴
     cmp al, 0
-    je .done
-    mov byte[es:di], al
+    je .done ; al의 값이 0이 되면 종료
+    mov byte[es:di], al ; 
     inc di
     mov byte[es:di], 0xF0
     inc di
