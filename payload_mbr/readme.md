@@ -110,3 +110,10 @@ dw 0xAA55 ; 2 Byte는 .img 파일의 서명 코드로 사용
 * PC 스피커 제어하기
 
 [ X ]
+
+## 참고
+
+* [INT 10H](https://ko.wikipedia.org/wiki/INT_10H)
+* [부트로더 화면 제어](https://eclipsemode.tistory.com/16)
+* [내 PC를 부팅하자](https://github.com/HIPERCUBE/64bit-Multicore-OS/blob/master/book/Ch4_%EB%82%B4%20PC%EB%A5%BC%20%EB%B6%80%ED%8C%85%ED%95%98%EC%9E%90.md)
+* [MEMZ](https://github.com/NyDubh3/MEMZ)
