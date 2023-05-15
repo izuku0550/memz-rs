@@ -1,36 +1,16 @@
 #![allow(unused_imports)]
-use screen::Resolution;
-use windows::Win32::{Foundation::HWND, Graphics::Gdi::HFONT};
-mod screen {
-    use windows::Win32::UI::WindowsAndMessaging::{
-        GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, SYSTEM_METRICS_INDEX,
-    };
+#![allow(dead_code)]
+use memz_rs::{get_cmdline_to_argv_w::Commandline, screen::Resolution, strcmp::lstrcmp_w};
+use std::slice;
+use windows::{
+    core::{PCWSTR, PWSTR},
+    Win32::{
+        Foundation::HWND, Globalization::lstrcmpW, Graphics::Gdi::HFONT,
+        System::Environment::GetCommandLineW, UI::Shell::CommandLineToArgvW,
+    },
+};
 
-    pub struct Resolution {
-        pub scrw: i32,
-        pub scrh: i32,
-    }
-
-    impl Resolution {
-        pub fn new() -> Self {
-            Self {
-                scrw: Self::wrap_with_option(SM_CXSCREEN).unwrap(),
-                scrh: Self::wrap_with_option(SM_CYSCREEN).unwrap(),
-            }
-        }
-
-        fn wrap_with_option(nindex: SYSTEM_METRICS_INDEX) -> Result<i32, ()> {
-            unsafe {
-                match GetSystemMetrics(nindex) {
-                    0 => panic!("Failed GetSystemMetrics function"),
-                    value => return Ok(value),
-                };
-            }
-        }
-    }
-}
-
-#[cfg(some_symbol)]
+// #[cfg(feature="CLEAN")]
 struct Clean {
     main_window: HWND,
     font: HFONT,
@@ -41,8 +21,16 @@ fn main() {
     let res = Resolution::new();
     println!("{} {}", res.scrw, res.scrh);
 
-    #[cfg(some_symbol)]
-    unsafe {
+    // #[cfg(feature="CLEAN")]
+    {
+        let cmdline = Commandline::new();
+        let argc = cmdline.argc;
+        let arg = cmdline.arg;
 
+        if argc > 1 {
+            if lstrcmp_w(arg, "/watchdog") {
+                todo!()
+            }
+        }
     }
 }
