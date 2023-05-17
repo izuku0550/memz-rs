@@ -1,7 +1,10 @@
 #![allow(unused_imports)]
 #![allow(dead_code)]
-use memz_rs::{get_cmdline_to_argv_w::Commandline, screen::Resolution, strcmp::lstrcmp_w};
-use std::slice;
+use memz_rs::{
+    wrap_windows_api::{lstrcmp_w, wrap_get_process_image_filename_a, Commandline, Resolution},
+    LMEM_ZEROINIT,
+};
+use std::{slice, thread::{self, sleep}, time::Duration};
 use windows::{
     core::{PCWSTR, PWSTR},
     Win32::{
@@ -17,7 +20,7 @@ struct Clean {
     dialog: HWND,
 }
 
-fn main() {
+fn main() -> windows::core::Result<()> {
     let res = Resolution::new();
     println!("{} {}", res.scrw, res.scrh);
 
@@ -29,8 +32,25 @@ fn main() {
 
         if argc > 1 {
             if lstrcmp_w(arg, "/watchdog") {
-                todo!()
+                let watchdog_thread = thread::spawn(move || {
+                    let oproc = 0;
+                    let mut f_buf = vec![LMEM_ZEROINIT; 512]; // buf <-- GetProcessImageFilenameA(return char *data)
+                    if let Ok(v) = wrap_get_process_image_filename_a(&mut f_buf) {
+                        v
+                    } else {
+                        0
+                    };
+
+                    sleep(Duration::from_nanos(1000));
+
+                    loop {
+                            let snapshot = todo!();
+                    }
+                });
+                watchdog_thread.join().unwrap();
             }
         }
     }
+
+    Ok(())
 }
