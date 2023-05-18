@@ -4,7 +4,7 @@ pub mod memz {}
 
 pub mod convert_str {
     // https://github.com/microsoft/windows-rs/issues/973#issuecomment-1363481060
-    use windows::core::PCWSTR;
+    use windows::core::{PCSTR, PCWSTR};
 
     pub struct PCWSTRWrapper {
         text: PCWSTR,
@@ -37,19 +37,79 @@ pub mod convert_str {
             }
         }
     }
+
+    impl ToPCWSTRWrapper for PCWSTR {
+        fn to_pcwstr(&self) -> PCWSTRWrapper {
+            PCWSTRWrapper {
+                text: *self,
+                _container: Vec::new(),
+            }
+        }
+    }
+
+    pub struct PCSTRWrapper {
+        text: PCSTR,
+        #[allow(unused)]
+        _container: Vec<u8>,
+    }
+
+    impl std::ops::Deref for PCSTRWrapper {
+        type Target = PCSTR;
+
+        fn deref(&self) -> &Self::Target {
+            &self.text
+        }
+    }
+
+    pub trait ToPCSTRWrapper {
+        fn to_pcstr(&self) -> PCSTRWrapper;
+    }
+
+    impl ToPCSTRWrapper for &str {
+        fn to_pcstr(&self) -> PCSTRWrapper {
+            // https://stackoverflow.com/questions/47980023/how-to-convert-from-u8-to-vecu8
+            let mut text = self.as_bytes().iter().cloned().collect::<Vec<u8>>();
+            text.push(0); // add null
+
+            PCSTRWrapper {
+                text: PCSTR(text.as_ptr()),
+                _container: text, // data lifetime management
+            }
+        }
+    }
+
+    impl ToPCSTRWrapper for PCSTR {
+        fn to_pcstr(&self) -> PCSTRWrapper {
+            PCSTRWrapper {
+                text: *self,
+                _container: Vec::new(),
+            }
+        }
+    }
 }
 
 pub mod wrap_windows_api {
     use crate::convert_str::ToPCWSTRWrapper;
+    use std::result;
     use windows::{
         core::PCWSTR,
         Win32::{
-            Foundation::GetLastError,
+            Foundation::{CloseHandle, GetLastError, BOOL, HANDLE, INVALID_HANDLE_VALUE},
             Globalization::lstrcmpW,
-            System::{ProcessStatus::GetProcessImageFileNameA, Threading::GetCurrentProcess, Environment::GetCommandLineW},
-            UI::{WindowsAndMessaging::{
-                GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, SYSTEM_METRICS_INDEX,
-            }, Shell::CommandLineToArgvW},
+            System::{
+                Diagnostics::ToolHelp::{
+                    CreateToolhelp32Snapshot, Process32Next, PROCESSENTRY32, TH32CS_SNAPPROCESS,
+                },
+                Environment::GetCommandLineW,
+                ProcessStatus::GetProcessImageFileNameA,
+                Threading::GetCurrentProcess,
+            },
+            UI::{
+                Shell::CommandLineToArgvW,
+                WindowsAndMessaging::{
+                    GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, SYSTEM_METRICS_INDEX,
+                },
+            },
         },
     };
 
@@ -73,12 +133,12 @@ pub mod wrap_windows_api {
 
                 if !argv.is_null() {
                     let arg = *argv;
-                    return Ok(Commandline {
+                    Ok(Commandline {
                         arg: PCWSTR(arg.0),
                         argc: argc,
-                    });
+                    })
                 } else {
-                    return Err(eprintln!("Commandline Error\n{:?}", GetLastError()));
+                    Err(eprintln!("Commandline Error\n{:?}", GetLastError()))
                 }
             }
         }
@@ -101,27 +161,28 @@ pub mod wrap_windows_api {
             unsafe {
                 match GetSystemMetrics(nindex) {
                     // GetLastError() does not provide extended error
-                    0 => return Err(eprintln!("Failed GetSystemMetrics function")),
-                    value => return Ok(value),
-                };
+                    0 => Err(eprintln!("Failed GetSystemMetrics function")),
+                    value => Ok(value),
+                }
             }
         }
     }
 
-    pub fn lstrcmp_w<T>(str1: PCWSTR, str2: T) -> bool
+    pub fn lstrcmp_w<T, U>(str1: T, str2: U) -> bool
     where
-        T: ToPCWSTRWrapper + AsRef<str>,
+        T: ToPCWSTRWrapper,
+        U: ToPCWSTRWrapper,
     {
         unsafe {
+            let str1 = str1.to_pcwstr();
             let str2 = str2.to_pcwstr();
-            let cmp = lstrcmpW(str1, *str2);
+
+            let cmp = lstrcmpW(*str1, *str2);
 
             if cmp == 0 {
-                return false;
-            } else if cmp < 0 {
-                return true;
+                false
             } else {
-                return true;
+                true
             }
         }
     }
@@ -129,14 +190,44 @@ pub mod wrap_windows_api {
     pub fn wrap_get_process_image_filename_a(fn_buf: &mut Vec<u8>) -> Result<u32, ()> {
         unsafe {
             match GetProcessImageFileNameA(GetCurrentProcess(), fn_buf) {
-                0 => {
-                    return Err(eprintln!(
-                        "Failed to GetProcessImageFileNameA\n{:?}",
-                        GetLastError()
-                    ))
-                }
-                v => return Ok(v),
-            };
+                0 => Err(eprintln!(
+                    "Failed to GetProcessImageFileNameA\n{:?}",
+                    GetLastError()
+                )),
+                v => Ok(v),
+            }
+        }
+    }
+
+    pub fn wrap_create_toolhelp32_snapshot() -> Result<HANDLE, ()> {
+        unsafe {
+            match CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) {
+                Ok(INVALID_HANDLE_VALUE) => Err(eprintln!(
+                    "Faiiled CreateToolhelp32Snapshot\n{:?}",
+                    GetLastError()
+                )),
+                Ok(handle) => Ok(handle),
+                _ => panic!(),
+            }
+        }
+    }
+
+    pub fn wrap_close_handle(h_object: HANDLE) -> Result<BOOL, ()> {
+        unsafe {
+            match CloseHandle(h_object) {
+                BOOL(0) => Err(eprintln!("CloseHandle Error\n{:?}", GetLastError())),
+                ret => Ok(ret),
+            }
+        }
+    }
+
+    pub fn wrap_process32_next(hsnapshot: HANDLE, lppe: &mut PROCESSENTRY32) -> Result<bool, ()> {
+        unsafe {
+            match Process32Next(hsnapshot, lppe) {
+                BOOL(1) => Ok(true),
+                BOOL(0) => Err(eprintln!("Process32Next Error\n{:?}", GetLastError())),
+                _ => panic!(),
+            }
         }
     }
 }
