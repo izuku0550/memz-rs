@@ -90,7 +90,6 @@ pub mod convert_str {
 
 pub mod wrap_windows_api {
     use crate::convert_str::ToPCWSTRWrapper;
-    use std::result;
     use windows::{
         core::PCWSTR,
         Win32::{

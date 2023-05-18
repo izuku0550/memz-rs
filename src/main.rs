@@ -8,24 +8,18 @@ use memz_rs::{
     LMEM_ZEROINIT,
 };
 use std::{
-    convert::Infallible,
     mem::size_of,
-    slice,
     thread::{self, sleep},
     time::Duration,
 };
 use windows::{
-    core::{PCWSTR, PWSTR},
     Win32::{
         Foundation::{BOOL, HANDLE, HWND, INVALID_HANDLE_VALUE},
-        Globalization::lstrcmpW,
         Graphics::Gdi::HFONT,
         System::{
             Diagnostics::ToolHelp::{Process32First, PROCESSENTRY32},
-            Environment::GetCommandLineW,
             Threading::{OpenProcess, PROCESS_QUERY_INFORMATION},
         },
-        UI::Shell::CommandLineToArgvW,
     },
 };
 
@@ -36,9 +30,7 @@ struct Clean {
     dialog: HWND,
 }
 
-fn kill_windows() {
-    todo!()
-}
+fn kill_windows() {}
 
 fn main() -> windows::core::Result<()> {
     let res = Resolution::new();
