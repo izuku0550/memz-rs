@@ -1,5 +1,5 @@
 // #[cfg(feature="CLEAN")]
-pub const msgs: [&'static str; 26] = [
+pub const MSGS: [&'static str; 26] = [
     "YOU KILLED MY TROJAN!\r\nNow you are going to die.",
     "REST IN PISS, FOREVER MISS.",
     "I WARNED YOU...",

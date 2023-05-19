@@ -91,12 +91,15 @@ pub mod convert_str {
 }
 
 pub mod wrap_windows_api {
+    use std::ffi::c_void;
+
     use crate::convert_str::{ToPCSTRWrapper, ToPCWSTRWrapper};
     use windows::{
         core::PCWSTR,
+        imp::{GetProcAddress, LoadLibraryA},
         Win32::{
             Foundation::{
-                CloseHandle, GetLastError, BOOL, HANDLE, HMODULE, HWND, INVALID_HANDLE_VALUE,
+                CloseHandle, GetLastError, BOOL, HANDLE, HMODULE, HWND, INVALID_HANDLE_VALUE, NTSTATUS,
             },
             Globalization::lstrcmpW,
             System::{
@@ -117,6 +120,29 @@ pub mod wrap_windows_api {
             },
         },
     };
+
+    pub type DWORD = u32;
+    pub type PDWORD = *mut u32;
+    pub type PBYTE = *mut u8;
+    pub mod ntdll_api {
+        use super::*;
+
+        pub type RtlAdjustPrivilegeFn = unsafe extern "system" fn(
+            Privilege: DWORD,
+            Enable: BOOL,
+            CurrentThread: BOOL,
+            Enabled: PBYTE
+        ) -> NTSTATUS;
+
+        pub type NtRaiseHardErrorFn = unsafe extern "system" fn(
+            ErrorStatus: NTSTATUS,
+            NumberOfParameters: DWORD,
+            UnicodeStringParameterMask: DWORD,
+            Parameters: *const DWORD,
+            ValidResponseOption: DWORD,
+            Response: PDWORD,
+        ) -> NTSTATUS;
+    }
 
     pub struct Commandline {
         pub arg: PCWSTR,
@@ -288,6 +314,40 @@ pub mod wrap_windows_api {
                     GetLastError()
                 )),
                 v => Ok(v),
+            }
+        }
+    }
+
+    pub fn wrap_load_library_a<T>(name: T) -> Result<isize, ()>
+    where
+        T: ToPCSTRWrapper,
+    {
+        let name = *name.to_pcstr();
+        unsafe {
+            match LoadLibraryA(name) {
+                0 => Err(eprintln!(
+                    "Failed LoadLibraryA\nGetLastError(): {:?}",
+                    GetLastError()
+                )),
+                v => Ok(v),
+            }
+        }
+    }
+
+    pub fn wrap_get_proc_address<T>(library: isize, name: T) -> Result<*const c_void, ()>
+    where
+        T: ToPCSTRWrapper,
+    {
+        let name = *name.to_pcstr();
+        unsafe {
+            let ret = GetProcAddress(library, name);
+            if ret.is_null() {
+                Err(eprintln!(
+                    "Failed GetProcAddress\nGetLastError(): {:?}",
+                    GetLastError()
+                ))
+            } else {
+                Ok(ret)
             }
         }
     }

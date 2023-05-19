@@ -1,9 +1,15 @@
 use memz_rs::{
     convert_str::{ToPCSTRWrapper, ToPCWSTRWrapper},
-    wrap_windows_api::{Commandline, Resolution, lstrcmp_w},
+    wrap_windows_api::{
+        lstrcmp_w, ntdll_api::RtlAdjustPrivilegeFn, wrap_get_proc_address, wrap_load_library_a,
+        Commandline, Resolution,
+    },
 };
-use std::slice;
-use windows::core::{strlen, wcslen, PCSTR, PCWSTR};
+use std::{slice, ptr};
+use windows::{
+    core::{strlen, wcslen, PCSTR, PCWSTR},
+    Win32::Foundation::{BOOL, NTSTATUS},
+};
 
 #[test]
 fn convert_str_to_pcstr() {
@@ -54,3 +60,32 @@ fn use_lstrcmp_w() {
     assert_eq!(lstrcmp_w(str2, str3), true);
 }
 
+#[test]
+fn load_library_a() {
+    let result = wrap_load_library_a("ntdll.dll").unwrap_or(Default::default());
+    assert_ne!(result, 0);
+}
+
+#[test]
+fn get_proc_address() {
+    let ntdll = wrap_load_library_a("ntdll.dll").unwrap();
+    let result = wrap_get_proc_address(ntdll, "RtlAdjustPrivilege").unwrap();
+    assert_ne!(result, ptr::null())
+}
+
+// #[test]
+// fn test_rtl_adjust_privilege() -> Result<(), ()> {
+//     unsafe {
+//         let ntdll = wrap_load_library_a("ntdll")?;
+//         let rtl_adjust_privilege =
+//             wrap_get_proc_address(ntdll, "RtlAdjustPrivilege")? as *const RtlAdjustPrivilegeFn;
+
+//         let mut tmp1: bool = Default::default();
+//         let tmp1_ptr = &mut tmp1 as *mut bool as *mut u8;
+
+//         let status = (*rtl_adjust_privilege)(19, BOOL(1), BOOL(0), tmp1_ptr);
+
+//         assert_eq!(status, NTSTATUS(0));
+//     }
+//     Ok(())
+// }
