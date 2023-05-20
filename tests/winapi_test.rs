@@ -1,11 +1,11 @@
 use memz_rs::{
     convert_str::{ToPCSTRWrapper, ToPCWSTRWrapper},
+    ntdll::{data::Privilege, ntdll_api::wrap_rtladjustprivilege},
     wrap_windows_api::{
-        lstrcmp_w, ntdll_api::RtlAdjustPrivilegeFn, wrap_get_proc_address, wrap_load_library_a,
-        Commandline, Resolution,
+        lstrcmp_w, wrap_get_proc_address, wrap_load_library_a, Resolution,
     },
 };
-use std::{slice, ptr};
+use std::{ptr, slice};
 use windows::{
     core::{strlen, wcslen, PCSTR, PCWSTR},
     Win32::Foundation::{BOOL, NTSTATUS},
@@ -37,13 +37,6 @@ fn convert_str_to_pcwstr() {
 }
 
 #[test]
-fn commandline_new() {
-    let commandline = Commandline::new();
-    assert!(commandline.argc > 0);
-    assert!(!commandline.arg.0.is_null());
-}
-
-#[test]
 fn resolution_new() {
     let resolution = Resolution::new();
     assert!(resolution.scrh > 0);
@@ -63,7 +56,7 @@ fn use_lstrcmp_w() {
 #[test]
 fn load_library_a() {
     let result = wrap_load_library_a("ntdll.dll").unwrap_or(Default::default());
-    assert_ne!(result, 0);
+    assert_ne!(result.0, 0);
 }
 
 #[test]
@@ -73,19 +66,14 @@ fn get_proc_address() {
     assert_ne!(result, ptr::null())
 }
 
-// #[test]
-// fn test_rtl_adjust_privilege() -> Result<(), ()> {
-//     unsafe {
-//         let ntdll = wrap_load_library_a("ntdll")?;
-//         let rtl_adjust_privilege =
-//             wrap_get_proc_address(ntdll, "RtlAdjustPrivilege")? as *const RtlAdjustPrivilegeFn;
+#[test]
+fn test_rtl_adjust_privilege() -> Result<(), ()> {
+    let mut tmp1: bool = Default::default();
+    let tmp1_ptr = &mut tmp1 as *mut bool as *mut u8;
 
-//         let mut tmp1: bool = Default::default();
-//         let tmp1_ptr = &mut tmp1 as *mut bool as *mut u8;
+    let status =
+        wrap_rtladjustprivilege(Privilege::SeShutdownPrivilege as u32, true, false, tmp1_ptr)?;
 
-//         let status = (*rtl_adjust_privilege)(19, BOOL(1), BOOL(0), tmp1_ptr);
-
-//         assert_eq!(status, NTSTATUS(0));
-//     }
-//     Ok(())
-// }
+    assert_eq!(status, NTSTATUS(0));
+    Ok(())
+}

