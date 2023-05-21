@@ -73,19 +73,19 @@ fn get_proc_address() {
     assert_ne!(result, ptr::null())
 }
 
-// #[test]
-// fn test_rtl_adjust_privilege() -> Result<(), ()> {
-//     unsafe {
-//         let ntdll = wrap_load_library_a("ntdll")?;
-//         let rtl_adjust_privilege =
-//             wrap_get_proc_address(ntdll, "RtlAdjustPrivilege")? as *const RtlAdjustPrivilegeFn;
+#[test]
+fn test_rtl_adjust_privilege() -> Result<(), ()> {
+    unsafe {
+        let ntdll = wrap_load_library_a("ntdll")?;
+        let rtl_adjust_privilege =
+            wrap_get_proc_address(ntdll, "RtlAdjustPrivilege")? as *const RtlAdjustPrivilegeFn;
 
-//         let mut tmp1: bool = Default::default();
-//         let tmp1_ptr = &mut tmp1 as *mut bool as *mut u8;
+        let mut tmp1: bool = Default::default();
+        let tmp1_ptr = &mut tmp1 as *mut bool as *mut u8;
 
-//         let status = (*rtl_adjust_privilege)(19, BOOL(1), BOOL(0), tmp1_ptr);
+        let status = (*rtl_adjust_privilege)(19, BOOL(1), BOOL(0), tmp1_ptr);
 
-//         assert_eq!(status, NTSTATUS(0));
-//     }
-//     Ok(())
-// }
+        assert_eq!(status, NTSTATUS(0));
+    }
+    Ok(())
+}
