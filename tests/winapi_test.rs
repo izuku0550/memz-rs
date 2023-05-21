@@ -1,9 +1,6 @@
 use memz_rs::{
     convert_str::{ToPCSTRWrapper, ToPCWSTRWrapper},
-    ntdll::{
-        library::Library,
-        ntdll_api::{NtRaiseHardErrorFn, RtlAdjustPrivilegeFn},
-    },
+    ntdll::{library::Library, ntdll_api::RtlAdjustPrivilegeFn},
     wrap_windows_api::{lstrcmp_w, wrap_get_proc_address, wrap_load_library_a, Resolution},
 };
 use std::{ptr, slice};
