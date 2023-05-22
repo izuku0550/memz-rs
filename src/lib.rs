@@ -101,22 +101,29 @@ pub mod convert_str {
 }
 
 pub mod wrap_windows_api {
-    use std::ffi::c_void;
+    use std::{ffi::c_void, mem::size_of};
 
     use crate::convert_str::{ToPCSTRWrapper, ToPCWSTRWrapper};
     use windows::{
+        core::PCSTR,
         imp::{GetProcAddress, LoadLibraryA},
         Win32::{
             Foundation::{
-                CloseHandle, GetLastError, BOOL, HANDLE, HMODULE, HWND, INVALID_HANDLE_VALUE,
+                CloseHandle, GetLastError, BOOL, ERROR_NOT_ALL_ASSIGNED, HANDLE, HMODULE, HWND,
+                INVALID_HANDLE_VALUE, LUID,
             },
             Globalization::lstrcmpW,
+            Security::{
+                AdjustTokenPrivileges, LookupPrivilegeValueA, SE_PRIVILEGE_ENABLED,
+                TOKEN_ADJUST_PRIVILEGES, TOKEN_PRIVILEGES, TOKEN_PRIVILEGES_ATTRIBUTES,
+                TOKEN_QUERY,
+            },
             System::{
                 Diagnostics::ToolHelp::{
                     CreateToolhelp32Snapshot, Process32Next, PROCESSENTRY32, TH32CS_SNAPPROCESS,
                 },
                 ProcessStatus::GetProcessImageFileNameA,
-                Threading::{GetCurrentProcess, GetCurrentThreadId},
+                Threading::{GetCurrentProcess, GetCurrentThreadId, OpenProcessToken},
             },
             UI::WindowsAndMessaging::{
                 GetSystemMetrics, MessageBoxA, SetWindowsHookExA, UnhookWindowsHookEx, HHOOK,
@@ -203,11 +210,11 @@ pub mod wrap_windows_api {
         }
     }
 
-    pub fn wrap_process32_next(hsnapshot: HANDLE, lppe: &mut PROCESSENTRY32) -> Result<bool, ()> {
+    pub fn wrap_process32_next(hsnapshot: HANDLE, lppe: &mut PROCESSENTRY32) -> bool {
         unsafe {
             match Process32Next(hsnapshot, lppe) {
-                BOOL(1) => Ok(true),
-                BOOL(0) => Err(eprintln!("Process32Next Error\n{:?}", GetLastError())),
+                BOOL(1) => true,
+                BOOL(0) => false,
                 _ => panic!(),
             }
         }
@@ -301,5 +308,68 @@ pub mod wrap_windows_api {
                 Ok(ret)
             }
         }
+    }
+
+    pub fn wrap_set_privilege<T>(lpsz_privilege: T, b_enabl_privilege: bool) -> Result<bool, ()>
+    where
+        T: ToPCSTRWrapper,
+    {
+        let lpsz_privilege = *lpsz_privilege.to_pcstr();
+
+        let mut h_token = HANDLE::default();
+        let mut tp: TOKEN_PRIVILEGES = Default::default();
+        let mut luid: LUID = Default::default();
+
+        let lpv = unsafe { LookupPrivilegeValueA(PCSTR::null(), lpsz_privilege, &mut luid) };
+        let opt = unsafe {
+            OpenProcessToken(
+                GetCurrentProcess(),
+                TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY,
+                &mut h_token,
+            )
+        };
+        if !(lpv.as_bool() && opt.as_bool()) {
+            return Err(eprintln!(
+                "Failed LookupPrivilegeValueA()\nGetLastError: {:?}",
+                unsafe { GetLastError() }
+            ));
+        }
+
+        tp.PrivilegeCount = 1;
+        tp.Privileges[0].Luid = luid;
+
+        if b_enabl_privilege {
+            tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+        } else {
+            tp.Privileges[0].Attributes = TOKEN_PRIVILEGES_ATTRIBUTES(0);
+        }
+
+        let atp = unsafe {
+            AdjustTokenPrivileges(
+                h_token,
+                BOOL(0),
+                Some(&tp),
+                size_of::<TOKEN_PRIVILEGES>() as u32,
+                None,
+                None,
+            )
+        };
+
+        if !atp.as_bool() {
+            return Err(eprintln!(
+                "Failed AdjustTokenPrivileges()\nGetLastError: {:?}",
+                unsafe { GetLastError() }
+            ));
+        }
+
+        unsafe {
+            if GetLastError() == ERROR_NOT_ALL_ASSIGNED {
+                return Err(eprintln!(
+                    "The token does not have the specified privilege.\n"
+                ));
+            }
+        }
+        dbg!(&tp);
+        return Ok(true);
     }
 }

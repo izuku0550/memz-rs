@@ -22,3 +22,7 @@ features = [
     "Win32_System_ProcessStatus",
     "Win32_System_Diagnostics_ToolHelp"
 ]
+
+[features]
+DEBUG = []
+CLEAN = []
