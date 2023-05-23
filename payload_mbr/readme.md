@@ -100,7 +100,7 @@ msg: incbin "data/other/text.bin", 0 ; text.bin에 있는 데이터를 포함시
 msglen: equ $ - msg ; msg 레이블과 현재 위치($)의 거리를 계산하여 길이를 계산
 
 times 510 - ($-$$) db 0 ; 510 Byte 중 남은 영역을 0으로 채우기
-dw 0xAA55 ; 2 Byte는 .img 파일의 서명 코드로 사용
+dw 0xAA55 ; 2 Byte는 Boot Sector 서명으로 사용
 ```
 
 * 이미지 출력하기
