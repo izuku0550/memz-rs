@@ -6,6 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+chrono = "0.4.24"
+log = "0.4.17"
+log4rs = "1.2.0"
 rand = "0.8.5"
 
 [dependencies.windows]
@@ -20,7 +23,7 @@ features = [
     "Win32_System_Environment",
     "Win32_Globalization",
     "Win32_System_ProcessStatus",
-    "Win32_System_Diagnostics_ToolHelp"
+    "Win32_System_Diagnostics_ToolHelp",
 ]
 
 [features]

