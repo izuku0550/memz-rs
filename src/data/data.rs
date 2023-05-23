@@ -27,3 +27,14 @@ pub const MSGS: [&'static str; 26] = [
     "'This is everything I want in my computer'\r\n - danooct1 2016",
     "'Uh, Club Penguin. Time to get banned!'\r\n - danooct1 2016",
 ];
+
+pub const MEMZ_MSGBOXA_1: &str = "The software you just executed is considered malware.\r\n\
+This malware will harm your computer and makes it unusable.\r\n\
+If you are seeing this message without knowing what you just executed, simply press No and nothing will happen.\r\n\
+If you know what this malware does and are using a safe environment to test, \
+press Yes to start it.\r\n\r\n\
+DO YOU WANT TO EXECUTE THIS MALWARE, RESULTING IN AN UNUSABLE MACHINE?";
+
+pub const MEMZ_MSGBOXA_2: &str = "THIS IS THE LAST WARNING!\r\n\r\n\
+THE CREATOR IS NOT RESPONSIBLE FOR ANY DAMAGE MADE USING THIS MALWARE!\r\n\
+STILL EXECUTE IT?";

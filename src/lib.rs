@@ -102,6 +102,7 @@ pub mod convert_str {
 }
 
 pub mod wrap_windows_api {
+    use core::fmt;
     use std::{ffi::c_void, mem::size_of};
 
     use crate::convert_str::{ToPCSTRWrapper, ToPCWSTRWrapper};
@@ -123,17 +124,28 @@ pub mod wrap_windows_api {
                 Diagnostics::ToolHelp::{
                     CreateToolhelp32Snapshot, Process32Next, PROCESSENTRY32, TH32CS_SNAPPROCESS,
                 },
-                ProcessStatus::GetProcessImageFileNameA,
+                ProcessStatus::{GetModuleFileNameExA, GetProcessImageFileNameA},
                 Threading::{GetCurrentProcess, GetCurrentThreadId, OpenProcessToken},
             },
             UI::WindowsAndMessaging::{
-                CreateWindowExA, GetMessageA, GetSystemMetrics, MessageBoxA, RegisterClassExA,
-                SetWindowsHookExA, UnhookWindowsHookEx, HHOOK, HOOKPROC, MESSAGEBOX_RESULT,
-                MESSAGEBOX_STYLE, MSG, SM_CXSCREEN, SM_CYSCREEN, SYSTEM_METRICS_INDEX,
-                WINDOWS_HOOK_ID, WNDCLASSEXA,
+                GetMessageA, GetSystemMetrics, MessageBoxA, RegisterClassExA, SetWindowsHookExA,
+                UnhookWindowsHookEx, HHOOK, HOOKPROC, MESSAGEBOX_RESULT, MESSAGEBOX_STYLE, MSG,
+                SM_CXSCREEN, SM_CYSCREEN, SYSTEM_METRICS_INDEX, WINDOWS_HOOK_ID, WNDCLASSEXA,
             },
         },
     };
+
+    #[derive(Debug)]
+    pub enum WinError {
+        Failed,
+        NoPermissions,
+    }
+
+    impl fmt::Display for WinError {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "{}", self)
+        }
+    }
 
     pub struct Resolution {
         pub scrw: i32,
@@ -148,11 +160,14 @@ pub mod wrap_windows_api {
             }
         }
 
-        fn wrap_with_result(nindex: SYSTEM_METRICS_INDEX) -> Result<i32, ()> {
+        fn wrap_with_result(nindex: SYSTEM_METRICS_INDEX) -> Result<i32, WinError> {
             unsafe {
                 match GetSystemMetrics(nindex) {
                     // GetLastError() does not provide extended error
-                    0 => Err(eprintln!("Failed GetSystemMetrics function")),
+                    0 => {
+                        eprintln!("Failed GetSystemMetrics function");
+                        Err(WinError::Failed)
+                    }
                     value => Ok(value),
                 }
             }
@@ -178,35 +193,38 @@ pub mod wrap_windows_api {
         }
     }
 
-    pub fn wrap_get_process_image_filename_a(fn_buf: &mut Vec<u8>) -> Result<u32, ()> {
+    pub fn wrap_get_process_image_filename_a(fn_buf: &mut Vec<u8>) -> Result<u32, WinError> {
         unsafe {
             match GetProcessImageFileNameA(GetCurrentProcess(), fn_buf) {
-                0 => Err(eprintln!(
-                    "Failed to GetProcessImageFileNameA\n{:?}",
-                    GetLastError()
-                )),
+                0 => {
+                    eprintln!("Failed to GetProcessImageFileNameA\n{:?}", GetLastError());
+                    Err(WinError::Failed)
+                }
                 v => Ok(v),
             }
         }
     }
 
-    pub fn wrap_create_toolhelp32_snapshot() -> Result<HANDLE, ()> {
+    pub fn wrap_create_toolhelp32_snapshot() -> Result<HANDLE, WinError> {
         unsafe {
             match CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) {
-                Ok(INVALID_HANDLE_VALUE) => Err(eprintln!(
-                    "Faiiled CreateToolhelp32Snapshot\n{:?}",
-                    GetLastError()
-                )),
+                Ok(INVALID_HANDLE_VALUE) => {
+                    eprintln!("Failed CreateToolhelp32Snapshot\n{:?}", GetLastError());
+                    Err(WinError::Failed)
+                }
                 Ok(handle) => Ok(handle),
                 _ => panic!(),
             }
         }
     }
 
-    pub fn wrap_close_handle(h_object: HANDLE) -> Result<BOOL, ()> {
+    pub fn wrap_close_handle(h_object: HANDLE) -> Result<BOOL, WinError> {
         unsafe {
             match CloseHandle(h_object) {
-                BOOL(0) => Err(eprintln!("CloseHandle Error\n{:?}", GetLastError())),
+                BOOL(0) => {
+                    eprintln!("CloseHandle Error\n{:?}", GetLastError());
+                    Err(WinError::Failed)
+                }
                 ret => Ok(ret),
             }
         }
@@ -217,7 +235,7 @@ pub mod wrap_windows_api {
             match Process32Next(hsnapshot, lppe) {
                 BOOL(1) => true,
                 BOOL(0) => false,
-                _ => panic!(),
+                _ => panic!("Failed Process32Next()\nUnknown Error"),
             }
         }
     }
@@ -227,13 +245,16 @@ pub mod wrap_windows_api {
         lpfn: HOOKPROC,
         hmod: HMODULE,
         dwthreadid: u32,
-    ) -> Result<HHOOK, ()> {
+    ) -> Result<HHOOK, WinError> {
         unsafe {
             match SetWindowsHookExA(idhook, lpfn, hmod, dwthreadid) {
-                Err(e) => Err(eprintln!(
-                    "SetWindowsHookExA Error:\n{e:#?}\nGetLastError(): {:?}",
-                    GetLastError()
-                )),
+                Err(e) => {
+                    eprintln!(
+                        "SetWindowsHookExA Error:\n{e:#?}\nGetLastError(): {:?}",
+                        GetLastError()
+                    );
+                    Err(WinError::Failed)
+                }
                 Ok(h_handle) => Ok(h_handle),
             }
         }
@@ -248,7 +269,7 @@ pub mod wrap_windows_api {
         lptext: T,
         lpcaption: U,
         utype: MESSAGEBOX_STYLE,
-    ) -> Result<MESSAGEBOX_RESULT, ()>
+    ) -> Result<MESSAGEBOX_RESULT, WinError>
     where
         T: ToPCSTRWrapper,
         U: ToPCSTRWrapper,
@@ -257,44 +278,47 @@ pub mod wrap_windows_api {
         let lpcaption = *lpcaption.to_pcstr();
         unsafe {
             match MessageBoxA(hwnd, lptext, lpcaption, utype) {
-                MESSAGEBOX_RESULT(0) => Err(eprintln!(
-                    "MessageBoxA Error\nGetLastError(): {:?}",
-                    GetLastError()
-                )),
+                MESSAGEBOX_RESULT(0) => {
+                    eprintln!("MessageBoxA Error\nGetLastError(): {:?}", GetLastError());
+                    Err(WinError::Failed)
+                }
                 v => Ok(v),
             }
         }
     }
 
-    pub fn wrap_unhook_windows_hook_ex(hhk: HHOOK) -> Result<BOOL, ()> {
+    pub fn wrap_unhook_windows_hook_ex(hhk: HHOOK) -> Result<bool, WinError> {
         unsafe {
             match UnhookWindowsHookEx(hhk) {
-                BOOL(0) => Err(eprintln!(
-                    "UnhookWindowsHookEx Error\nGetLastError(): {:?}",
-                    GetLastError()
-                )),
-                v => Ok(v),
+                BOOL(0) => {
+                    eprintln!(
+                        "UnhookWindowsHookEx Error\nGetLastError(): {:?}",
+                        GetLastError()
+                    );
+                    Err(WinError::Failed)
+                }
+                v => Ok(v.as_bool()),
             }
         }
     }
 
-    pub fn wrap_load_library_a<T>(name: T) -> Result<HMODULE, ()>
+    pub fn wrap_load_library_a<T>(name: T) -> Result<HMODULE, WinError>
     where
         T: ToPCSTRWrapper,
     {
         let name = *name.to_pcstr();
         unsafe {
             match LoadLibraryA(name) {
-                0 => Err(eprintln!(
-                    "Failed LoadLibraryA\nGetLastError(): {:?}",
-                    GetLastError()
-                )),
+                0 => {
+                    eprintln!("Failed LoadLibraryA\nGetLastError(): {:?}", GetLastError());
+                    Err(WinError::Failed)
+                }
                 v => Ok(HMODULE(v)),
             }
         }
     }
 
-    pub fn wrap_get_proc_address<T>(library: HMODULE, name: T) -> Result<*const c_void, ()>
+    pub fn wrap_get_proc_address<T>(library: HMODULE, name: T) -> Result<*const c_void, WinError>
     where
         T: ToPCSTRWrapper,
     {
@@ -302,17 +326,18 @@ pub mod wrap_windows_api {
         unsafe {
             let ret = GetProcAddress(library.0, name);
             if ret.is_null() {
-                Err(eprintln!(
+                eprintln!(
                     "Failed GetProcAddress\nGetLastError(): {:?}",
                     GetLastError()
-                ))
+                );
+                Err(WinError::Failed)
             } else {
                 Ok(ret)
             }
         }
     }
 
-    pub fn set_privilege<T>(lpsz_privilege: T, b_enabl_privilege: bool) -> Result<bool, ()>
+    pub fn set_privilege<T>(lpsz_privilege: T, b_enabl_privilege: bool) -> Result<bool, WinError>
     where
         T: ToPCWSTRWrapper,
     {
@@ -331,10 +356,11 @@ pub mod wrap_windows_api {
             )
         };
         if !(lpv.as_bool() && opt.as_bool()) {
-            return Err(eprintln!(
+            eprintln!(
                 "Failed LookupPrivilegeValueA()\nGetLastError: {:?}",
                 unsafe { GetLastError() }
-            ));
+            );
+            return Err(WinError::Failed);
         }
 
         tp.PrivilegeCount = 1;
@@ -358,30 +384,35 @@ pub mod wrap_windows_api {
         };
 
         if !atp.as_bool() {
-            return Err(eprintln!(
+            eprintln!(
                 "Failed AdjustTokenPrivileges()\nGetLastError: {:?}",
                 unsafe { GetLastError() }
-            ));
+            );
+            return Err(WinError::Failed);
         }
 
         unsafe {
             if GetLastError() == ERROR_NOT_ALL_ASSIGNED {
-                return Err(eprintln!(
-                    "The token does not have the specified privilege.\n"
-                ));
+                eprintln!("The token does not have the specified privilege.\n");
+                return Err(WinError::NoPermissions);
             }
         }
+        #[cfg(feature = "DEBUG_MODE")]
         dbg!(&tp);
+
         return Ok(true);
     }
 
-    pub fn wrap_register_class_ex_a(param0: &WNDCLASSEXA) -> Result<u16, ()> {
+    pub fn wrap_register_class_ex_a(param0: &WNDCLASSEXA) -> Result<u16, WinError> {
         unsafe {
             match RegisterClassExA(param0) {
-                0 => Err(eprintln!(
-                    "Failed RegisterClassExA()\nGetLastError: {:?}",
-                    GetLastError()
-                )),
+                0 => {
+                    eprintln!(
+                        "Failed RegisterClassExA()\nGetLastError: {:?}",
+                        GetLastError()
+                    );
+                    Err(WinError::Failed)
+                }
                 v => Ok(v),
             }
         }
@@ -392,14 +423,33 @@ pub mod wrap_windows_api {
         hwnd: HWND,
         wmsgfiltermin: u32,
         wmsgfiltermax: u32,
-    ) -> Result<bool, ()> {
+    ) -> Result<bool, WinError> {
         unsafe {
             match GetMessageA(lpmsg, hwnd, wmsgfiltermin, wmsgfiltermax) {
-                BOOL(-1) => Err(eprintln!(
-                    "Failed GetMessageA()\nGetLastError: {:?}",
-                    GetLastError()
-                )),
+                BOOL(-1) => {
+                    eprintln!("Failed GetMessageA()\nGetLastError: {:?}", GetLastError());
+                    Err(WinError::Failed)
+                }
                 v => Ok(v.as_bool()),
+            }
+        }
+    }
+
+    pub fn wrap_get_module_file_name(
+        hprocess: HANDLE,
+        hmodule: HMODULE,
+        lpfilename: &mut [u8],
+    ) -> Result<u32, WinError> {
+        unsafe {
+            match GetModuleFileNameExA(hprocess, hmodule, lpfilename) {
+                0 => {
+                    eprintln!(
+                        "Failed GetModuleFileNameExA()\nGetLastError: {:?}",
+                        GetLastError()
+                    );
+                    Err(WinError::Failed)
+                }
+                v => Ok(v),
             }
         }
     }

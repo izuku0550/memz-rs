@@ -27,5 +27,6 @@ features = [
 ]
 
 [features]
-DEBUG = []
+WATCHDOG = []
+DEBUG_MODE = []
 CLEAN = []

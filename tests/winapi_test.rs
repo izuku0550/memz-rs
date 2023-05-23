@@ -3,7 +3,7 @@ use memz_rs::{
     ntdll::{library::Library, ntdll_api::RtlAdjustPrivilegeFn},
     wrap_windows_api::{
         lstrcmp_w, wrap_close_handle, wrap_create_toolhelp32_snapshot, wrap_get_proc_address,
-        wrap_get_process_image_filename_a, wrap_load_library_a, wrap_process32_next, Resolution,
+        wrap_get_process_image_filename_a, wrap_load_library_a, wrap_process32_next, Resolution, WinError,
     },
     LMEM_ZEROINIT,
 };
@@ -99,7 +99,7 @@ fn create_toolhelp32_snapshot() {
 }
 
 #[test]
-fn close_handle() -> Result<(), ()> {
+fn close_handle() -> Result<(), WinError> {
     let snapshot = wrap_create_toolhelp32_snapshot()?;
     let res = wrap_close_handle(snapshot);
     assert!(res.is_ok());
