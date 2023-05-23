@@ -127,9 +127,10 @@ pub mod wrap_windows_api {
                 Threading::{GetCurrentProcess, GetCurrentThreadId, OpenProcessToken},
             },
             UI::WindowsAndMessaging::{
-                GetSystemMetrics, MessageBoxA, SetWindowsHookExA, UnhookWindowsHookEx, HHOOK,
-                HOOKPROC, MESSAGEBOX_RESULT, MESSAGEBOX_STYLE, SM_CXSCREEN, SM_CYSCREEN,
-                SYSTEM_METRICS_INDEX, WINDOWS_HOOK_ID,
+                CreateWindowExA, GetMessageA, GetSystemMetrics, MessageBoxA, RegisterClassExA,
+                SetWindowsHookExA, UnhookWindowsHookEx, HHOOK, HOOKPROC, MESSAGEBOX_RESULT,
+                MESSAGEBOX_STYLE, MSG, SM_CXSCREEN, SM_CYSCREEN, SYSTEM_METRICS_INDEX,
+                WINDOWS_HOOK_ID, WNDCLASSEXA,
             },
         },
     };
@@ -372,5 +373,34 @@ pub mod wrap_windows_api {
         }
         dbg!(&tp);
         return Ok(true);
+    }
+
+    pub fn wrap_register_class_ex_a(param0: &WNDCLASSEXA) -> Result<u16, ()> {
+        unsafe {
+            match RegisterClassExA(param0) {
+                0 => Err(eprintln!(
+                    "Failed RegisterClassExA()\nGetLastError: {:?}",
+                    GetLastError()
+                )),
+                v => Ok(v),
+            }
+        }
+    }
+
+    pub fn wrap_get_message(
+        lpmsg: &mut MSG,
+        hwnd: HWND,
+        wmsgfiltermin: u32,
+        wmsgfiltermax: u32,
+    ) -> Result<bool, ()> {
+        unsafe {
+            match GetMessageA(lpmsg, hwnd, wmsgfiltermin, wmsgfiltermax) {
+                BOOL(-1) => Err(eprintln!(
+                    "Failed GetMessageA()\nGetLastError: {:?}",
+                    GetLastError()
+                )),
+                v => Ok(v.as_bool()),
+            }
+        }
     }
 }

