@@ -81,7 +81,7 @@ pub mod convert_str {
     impl ToPCSTRWrapper for &str {
         fn to_pcstr(&self) -> PCSTRWrapper {
             // https://stackoverflow.com/questions/47980023/how-to-convert-from-u8-to-vecu8
-            let mut text = self.as_bytes().iter().cloned().collect::<Vec<u8>>();
+            let mut text = self.as_bytes().to_vec();
             text.push(0); // add null
 
             PCSTRWrapper {
@@ -127,7 +127,10 @@ pub mod wrap_windows_api {
                     CreateToolhelp32Snapshot, Process32Next, PROCESSENTRY32, TH32CS_SNAPPROCESS,
                 },
                 ProcessStatus::{GetModuleFileNameExA, GetProcessImageFileNameA},
-                Threading::{GetCurrentProcess, GetCurrentThreadId, OpenProcessToken},
+                Threading::{
+                    GetCurrentProcess, GetCurrentThreadId, OpenProcessToken, SetPriorityClass,
+                    PROCESS_CREATION_FLAGS,
+                },
             },
             UI::{
                 Shell::ShellExecuteA,
@@ -149,7 +152,7 @@ pub mod wrap_windows_api {
 
     impl fmt::Display for WinError {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            write!(f, "{}", self)
+            write!(f, "{:?}", self)
         }
     }
 
@@ -159,7 +162,7 @@ pub mod wrap_windows_api {
     }
 
     impl Resolution {
-        pub fn new() -> Self {
+        fn new() -> Self {
             Self {
                 scrw: Self::wrap_with_result(SM_CXSCREEN).unwrap(),
                 scrh: Self::wrap_with_result(SM_CYSCREEN).unwrap(),
@@ -180,6 +183,12 @@ pub mod wrap_windows_api {
         }
     }
 
+    impl Default for Resolution {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
     pub fn lstrcmp_w<T, U>(str1: T, str2: U) -> bool
     where
         T: ToPCWSTRWrapper,
@@ -191,15 +200,11 @@ pub mod wrap_windows_api {
 
             let cmp = lstrcmpW(*str1, *str2);
 
-            if cmp == 0 {
-                false
-            } else {
-                true
-            }
+            cmp != 0
         }
     }
 
-    pub fn wrap_get_process_image_filename_a(fn_buf: &mut Vec<u8>) -> Result<u32, WinError> {
+    pub fn wrap_get_process_image_filename_a(fn_buf: &mut [u8]) -> Result<u32, WinError> {
         unsafe {
             match GetProcessImageFileNameA(GetCurrentProcess(), fn_buf) {
                 0 => {
@@ -423,7 +428,7 @@ pub mod wrap_windows_api {
         #[cfg(feature = "DEBUG_MODE")]
         dbg!(&tp);
 
-        return Ok(true);
+        Ok(true)
     }
 
     pub fn wrap_register_class_ex_a(param0: &WNDCLASSEXA) -> Result<u16, WinError> {
@@ -533,13 +538,40 @@ pub mod wrap_windows_api {
                         LogType::ERROR,
                         format!("ShellExecuteA failed with error code: {:?}", res),
                     );
-                    return Err(WinError::Failed);
+                    Err(WinError::Failed)
                 }
                 v => {
                     #[cfg(feature = "DEBUG_MODE")]
                     write_log(LogType::INFO, "ShellExecuteA succeeded");
                     Ok(v)
                 }
+            }
+        }
+    }
+
+    pub fn wrap_set_priority_class(
+        h_process: HANDLE,
+        dw_priority_class: u32,
+    ) -> Result<bool, WinError> {
+        unsafe {
+            match SetPriorityClass(h_process, PROCESS_CREATION_FLAGS(dw_priority_class)) {
+                BOOL(0) => {
+                    #[cfg(not(feature = "DEBUG_MODE"))]
+                    eprintln!(
+                        "SetPriorityClass failed with GetLastError():\n: {:?}",
+                        GetLastError()
+                    );
+                    #[cfg(feature = "DEBUG_MODE")]
+                    write_log(
+                        LogType::ERROR,
+                        format!(
+                            "SetPriorityClass failed with GetLastError():\n {:?}",
+                            GetLastError()
+                        ),
+                    );
+                    Err(WinError::Failed)
+                }
+                v => Ok(v.as_bool()),
             }
         }
     }

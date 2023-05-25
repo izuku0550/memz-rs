@@ -3,7 +3,8 @@ use memz_rs::{
     ntdll::{library::Library, ntdll_api::RtlAdjustPrivilegeFn},
     wrap_windows_api::{
         lstrcmp_w, wrap_close_handle, wrap_create_toolhelp32_snapshot, wrap_get_proc_address,
-        wrap_get_process_image_filename_a, wrap_load_library_a, wrap_process32_next, Resolution, WinError,
+        wrap_get_process_image_filename_a, wrap_load_library_a, wrap_process32_next, Resolution,
+        WinError,
     },
     LMEM_ZEROINIT,
 };
@@ -43,7 +44,7 @@ fn convert_str_to_pcwstr() {
 
 #[test]
 fn resolution_new() {
-    let resolution = Resolution::new();
+    let resolution = Resolution::default();
     assert!(resolution.scrh > 0);
     assert!(resolution.scrw > 0);
 }
@@ -52,10 +53,10 @@ fn resolution_new() {
 fn use_lstrcmp_w() {
     let str1 = "Hello, world!";
     let str2 = "Hello, world!";
-    assert_eq!(lstrcmp_w(str1, str2), false);
+    assert!(lstrcmp_w(str1, str2));
 
     let str3 = "Goodbye, world!";
-    assert_eq!(lstrcmp_w(str2, str3), true);
+    assert!(lstrcmp_w(str2, str3));
 }
 
 #[test]
@@ -110,7 +111,7 @@ fn close_handle() -> Result<(), WinError> {
 fn test_wrap_process32_next() {
     let snapshot = wrap_create_toolhelp32_snapshot().unwrap();
     let mut entry = PROCESSENTRY32 {
-        dwSize: size_of::<PROCESSENTRY32> as u32,
+        dwSize: size_of::<PROCESSENTRY32>() as u32,
         ..Default::default()
     };
     unsafe {

@@ -1,3 +1,4 @@
+use crate::wrap_windows_api::Resolution;
 use windows::Win32::{
     Foundation::{HWND, LPARAM, LRESULT, WPARAM},
     UI::WindowsAndMessaging::{
@@ -5,8 +6,9 @@ use windows::Win32::{
     },
 };
 
-use crate::wrap_windows_api::Resolution;
-
+/// # Safety
+///
+/// This function should not be called before the horsemen are ready.
 pub unsafe extern "system" fn msg_box_hook(ncode: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     if ncode == HCBT_CREATEWND as i32 {
         let pcs = (*(lparam.0 as *mut CBT_CREATEWNDA)).lpcs;
@@ -14,7 +16,7 @@ pub unsafe extern "system" fn msg_box_hook(ncode: i32, wparam: WPARAM, lparam: L
             || (WINDOW_STYLE((*pcs).style as u32) & WS_POPUP) != WINDOW_STYLE(0)
         {
             let _hwnd = HWND(wparam.0 as isize);
-            let resol = Resolution::new();
+            let resol = Resolution::default();
             let coordinate = (
                 rand::random::<i32>() % (resol.scrw - (*pcs).cx),
                 rand::random::<i32>() % (resol.scrh - (*pcs).cy),
@@ -24,5 +26,5 @@ pub unsafe extern "system" fn msg_box_hook(ncode: i32, wparam: WPARAM, lparam: L
         }
     }
 
-    return CallNextHookEx(HHOOK(0 as isize), ncode, wparam, lparam);
+    CallNextHookEx(HHOOK(0_isize), ncode, wparam, lparam)
 }

