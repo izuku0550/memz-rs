@@ -1,11 +1,15 @@
 use chrono::Local;
-use log::LevelFilter;
+use log::{LevelFilter, info, error};
 use log4rs::{
     append::file::FileAppender,
     config::{Appender, Logger, Root},
     encode::pattern::PatternEncoder,
     Config,
 };
+pub enum LogType {
+    ERROR,
+    INFO
+}
 
 pub fn new_log() {
     let now = Local::now();
@@ -40,4 +44,18 @@ pub fn new_log() {
         .unwrap();
 
     log4rs::init_config(config).unwrap();
+}
+
+
+pub fn write_log(log: LogType, text: &str) {
+    match log {
+        LogType::INFO => {
+            println!("INFO - {}", text);
+            info!(target: "info_log", "{}", text);
+        },
+        LogType::ERROR => {
+            eprintln!("ERROR - {}", text);
+            error!(target: "err_log", "{}", text);
+        }
+    }
 }

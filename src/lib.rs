@@ -106,6 +106,8 @@ pub mod wrap_windows_api {
     use std::{ffi::c_void, mem::size_of};
 
     use crate::convert_str::{ToPCSTRWrapper, ToPCWSTRWrapper};
+    #[cfg(feature = "DEBUG_MODE")]
+    use crate::utils::log::{write_log, LogType};
     use windows::{
         core::PCWSTR,
         imp::{GetProcAddress, LoadLibraryA},
@@ -127,10 +129,14 @@ pub mod wrap_windows_api {
                 ProcessStatus::{GetModuleFileNameExA, GetProcessImageFileNameA},
                 Threading::{GetCurrentProcess, GetCurrentThreadId, OpenProcessToken},
             },
-            UI::WindowsAndMessaging::{
-                GetMessageA, GetSystemMetrics, MessageBoxA, RegisterClassExA, SetWindowsHookExA,
-                UnhookWindowsHookEx, HHOOK, HOOKPROC, MESSAGEBOX_RESULT, MESSAGEBOX_STYLE, MSG,
-                SM_CXSCREEN, SM_CYSCREEN, SYSTEM_METRICS_INDEX, WINDOWS_HOOK_ID, WNDCLASSEXA,
+            UI::{
+                Shell::ShellExecuteA,
+                WindowsAndMessaging::{
+                    GetMessageA, GetSystemMetrics, MessageBoxA, RegisterClassExA,
+                    SetWindowsHookExA, UnhookWindowsHookEx, HHOOK, HOOKPROC, MESSAGEBOX_RESULT,
+                    MESSAGEBOX_STYLE, MSG, SHOW_WINDOW_CMD, SM_CXSCREEN, SM_CYSCREEN,
+                    SYSTEM_METRICS_INDEX, WINDOWS_HOOK_ID, WNDCLASSEXA,
+                },
             },
         },
     };
@@ -384,16 +390,33 @@ pub mod wrap_windows_api {
         };
 
         if !atp.as_bool() {
+            #[cfg(not(feature = "DEBUG_MODE"))]
             eprintln!(
                 "Failed AdjustTokenPrivileges()\nGetLastError: {:?}",
                 unsafe { GetLastError() }
             );
+
+            #[cfg(feature = "DEBUG_MODE")]
+            write_log(
+                LogType::ERROR,
+                "Failed AdjustTokenPrivileges()\nGetLastError: {:?}",
+                unsafe { GetLastError() },
+            );
+
             return Err(WinError::Failed);
         }
 
         unsafe {
             if GetLastError() == ERROR_NOT_ALL_ASSIGNED {
+                #[cfg(not(feature = "DEBUG_MODE"))]
                 eprintln!("The token does not have the specified privilege.\n");
+
+                #[cfg(feature = "DEBUG_MODE")]
+                write_log(
+                    LogType::ERROR,
+                    "The token does not have the specified privilege.\n",
+                );
+
                 return Err(WinError::NoPermissions);
             }
         }
@@ -407,9 +430,18 @@ pub mod wrap_windows_api {
         unsafe {
             match RegisterClassExA(param0) {
                 0 => {
+                    #[cfg(not(feature = "DEBUG_MODE"))]
                     eprintln!(
                         "Failed RegisterClassExA()\nGetLastError: {:?}",
                         GetLastError()
+                    );
+                    #[cfg(feature = "DEBUG_MODE")]
+                    write_log(
+                        LogType::ERROR,
+                        format!(
+                            "Failed RegisterClassExA()\nGetLastError: {:?}",
+                            GetLastError()
+                        ),
                     );
                     Err(WinError::Failed)
                 }
@@ -427,7 +459,15 @@ pub mod wrap_windows_api {
         unsafe {
             match GetMessageA(lpmsg, hwnd, wmsgfiltermin, wmsgfiltermax) {
                 BOOL(-1) => {
+                    #[cfg(not(feature = "DEBUG_MODE"))]
                     eprintln!("Failed GetMessageA()\nGetLastError: {:?}", GetLastError());
+
+                    #[cfg(feature = "DEBUG_MODE")]
+                    write_log(
+                        LogType::ERROR,
+                        format!("Failed GetMessageA()\nGetLastError: {:?}", GetLastError()),
+                    );
+
                     Err(WinError::Failed)
                 }
                 v => Ok(v.as_bool()),
@@ -443,13 +483,63 @@ pub mod wrap_windows_api {
         unsafe {
             match GetModuleFileNameExA(hprocess, hmodule, lpfilename) {
                 0 => {
+                    #[cfg(not(feature = "DEBUG_MODE"))]
                     eprintln!(
                         "Failed GetModuleFileNameExA()\nGetLastError: {:?}",
                         GetLastError()
                     );
+                    #[cfg(feature = "DEBUG_MODE")]
+                    write_log(
+                        LogType::ERROR,
+                        format!(
+                            "Failed GetModuleFileNameExA()\nGetLastError: {:?}",
+                            GetLastError()
+                        ),
+                    );
                     Err(WinError::Failed)
                 }
                 v => Ok(v),
+            }
+        }
+    }
+
+    pub fn wrap_shell_execute_a<P1, P2, P3, P4>(
+        hwnd: HWND,
+        lpoperation: P1,
+        lpfile: P2,
+        lpparameters: P3,
+        lpdirectory: P4,
+        nshowcmd: SHOW_WINDOW_CMD,
+    ) -> Result<HMODULE, WinError>
+    where
+        P1: ToPCSTRWrapper,
+        P2: ToPCSTRWrapper,
+        P3: ToPCSTRWrapper,
+        P4: ToPCSTRWrapper,
+    {
+        let p1 = *lpoperation.to_pcstr();
+        let p2 = *lpfile.to_pcstr();
+        let p3 = *lpparameters.to_pcstr();
+        let p4 = *lpdirectory.to_pcstr();
+        unsafe {
+            let res = ShellExecuteA(hwnd, p1, p2, p3, p4, nshowcmd);
+
+            match res {
+                HMODULE(0..=31) => {
+                    #[cfg(not(feature = "DEBUG_MODE"))]
+                    eprintln!("ShellExecuteA failed with error code: {:?}", res);
+                    #[cfg(feature = "DEBUG_MODE")]
+                    write_log(
+                        LogType::ERROR,
+                        format!("ShellExecuteA failed with error code: {:?}", res),
+                    );
+                    return Err(WinError::Failed);
+                }
+                v => {
+                    #[cfg(feature = "DEBUG_MODE")]
+                    write_log(LogType::INFO, "ShellExecuteA succeeded");
+                    Ok(v)
+                }
             }
         }
     }
