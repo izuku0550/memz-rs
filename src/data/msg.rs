@@ -1,5 +1,4 @@
-// #[cfg(feature="CLEAN")]
-pub const MSGS: [&str; 26] = [
+pub const MSGS: &[&str] = &[
     "YOU KILLED MY TROJAN!\r\nNow you are going to die.",
     "REST IN PISS, FOREVER MISS.",
     "I WARNED YOU...",
@@ -27,6 +26,8 @@ pub const MSGS: [&str; 26] = [
     "'This is everything I want in my computer'\r\n - danooct1 2016",
     "'Uh, Club Penguin. Time to get banned!'\r\n - danooct1 2016",
 ];
+
+pub const MSGS_LEN: usize = MSGS.len();
 
 pub const MEMZ_MSGBOXA_1: &str = "The software you just executed is considered malware.\r\n\
 This malware will harm your computer and makes it unusable.\r\n\

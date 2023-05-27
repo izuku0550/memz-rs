@@ -1,5 +1,5 @@
 use chrono::Local;
-use log::{LevelFilter, info, error};
+use log::{error, info, LevelFilter};
 use log4rs::{
     append::file::FileAppender,
     config::{Appender, Logger, Root},
@@ -8,7 +8,13 @@ use log4rs::{
 };
 pub enum LogType {
     ERROR,
-    INFO
+    INFO,
+}
+
+pub enum LogLocation {
+    MSG,
+    LOG,
+    ALL,
 }
 
 pub fn new_log() {
@@ -46,16 +52,31 @@ pub fn new_log() {
     log4rs::init_config(config).unwrap();
 }
 
-
-pub fn write_log(log: LogType, text: &str) {
+pub fn write_log(log: LogType, location: LogLocation, text: &str) {
     match log {
-        LogType::INFO => {
-            println!("INFO - {}", text);
-            info!(target: "info_log", "{}", text);
+        LogType::INFO => match location {
+            LogLocation::MSG => {
+                println!("INFO - {}", text);
+            }
+            LogLocation::LOG => {
+                info!(target: "info_log", "{}", text);
+            }
+            LogLocation::ALL => {
+                println!("INFO - {}", text);
+                info!(target: "info_log", "{}", text);
+            }
         },
-        LogType::ERROR => {
-            eprintln!("ERROR - {}", text);
-            error!(target: "err_log", "{}", text);
-        }
+        LogType::ERROR => match location {
+            LogLocation::MSG => {
+                eprintln!("ERROR - {}", text);
+            }
+            LogLocation::LOG => {
+                error!(target: "err_log", "{}", text);
+            }
+            LogLocation::ALL => {
+                eprintln!("ERROR - {}", text);
+                error!(target: "err_log", "{}", text);
+            }
+        },
     }
 }
