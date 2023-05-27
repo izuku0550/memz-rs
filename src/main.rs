@@ -1,6 +1,4 @@
 #![allow(dead_code)]
-#[cfg(feature = "DEBUG_MODE")]
-use crate::log::{write_log, LogLocation, LogType};
 
 use memz_rs::{
     convert_str::ToPCSTRWrapper,
@@ -13,7 +11,8 @@ use memz_rs::{
         ntdll_api::{NtRaiseHardErrorFn, RtlAdjustPrivilegeFn},
     },
     payloads::system::msg_box_hook,
-    utils::log::{self, write_log, LogLocation, LogType},
+    utils::log,
+    utils::log::{write_log, LogLocation, LogType},
     winapi_type::DWORD,
     wrap_windows_api::*,
     LMEM_ZEROINIT,

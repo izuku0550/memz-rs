@@ -105,12 +105,8 @@ pub mod wrap_windows_api {
     use core::fmt;
     use std::{ffi::c_void, mem::size_of, process};
 
-    #[cfg(feature = "DEBUG_MODE")]
-    use crate::utils::log::{write_log, LogType};
-    use crate::{
-        convert_str::{ToPCSTRWrapper, ToPCWSTRWrapper},
-        utils::log::{write_log, LogLocation, LogType},
-    };
+    use crate::convert_str::{ToPCSTRWrapper, ToPCWSTRWrapper};
+    use crate::utils::log::{write_log, LogLocation, LogType};
     use windows::{
         core::PCWSTR,
         imp::{GetProcAddress, LoadLibraryA},
@@ -461,11 +457,11 @@ pub mod wrap_windows_api {
             #[cfg(feature = "DEBUG_MODE")]
             write_log(
                 LogType::ERROR,
-                LogLocation::ALL
-                    & format!(
-                        "Failed AdjustTokenPrivileges()\nGetLastError: {:?}",
-                        unsafe { GetLastError() }
-                    ),
+                LogLocation::ALL,
+                &format!(
+                    "Failed AdjustTokenPrivileges()\nGetLastError: {:?}",
+                    unsafe { GetLastError() }
+                ),
             );
 
             return Err(WinError::Failed);
