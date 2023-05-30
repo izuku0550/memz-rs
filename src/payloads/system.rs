@@ -1,10 +1,12 @@
-use crate::wrap_windows_api::Resolution;
 use windows::Win32::{
     Foundation::{HWND, LPARAM, LRESULT, WPARAM},
     UI::WindowsAndMessaging::{
-        CallNextHookEx, CBT_CREATEWNDA, HCBT_CREATEWND, HHOOK, WINDOW_STYLE, WS_DLGFRAME, WS_POPUP,
+        CallNextHookEx, CBT_CREATEWNDA, HCBT_CREATEWND, HHOOK, SM_CXSCREEN, SM_CYSCREEN,
+        WINDOW_STYLE, WS_DLGFRAME, WS_POPUP,
     },
 };
+
+use crate::wrap_windows_api::wrap_get_system_metrics;
 
 /// # Safety
 ///
@@ -16,10 +18,13 @@ pub unsafe extern "system" fn msg_box_hook(ncode: i32, wparam: WPARAM, lparam: L
             || (WINDOW_STYLE((*pcs).style as u32) & WS_POPUP) != WINDOW_STYLE(0)
         {
             let _hwnd = HWND(wparam.0 as isize);
-            let resol = Resolution::default();
+            let (scrw, scrh) = (
+                wrap_get_system_metrics(SM_CXSCREEN).expect("Failed GetSystemMetrics"),
+                wrap_get_system_metrics(SM_CYSCREEN).expect("Failed GetSystemMetrics"),
+            );
             let coordinate = (
-                rand::random::<i32>() % (resol.scrw - (*pcs).cx),
-                rand::random::<i32>() % (resol.scrh - (*pcs).cy),
+                rand::random::<i32>() % (scrw - (*pcs).cx),
+                rand::random::<i32>() % (scrh - (*pcs).cy),
             );
             (*pcs).x = coordinate.0;
             (*pcs).y = coordinate.1;

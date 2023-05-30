@@ -139,7 +139,7 @@ pub mod wrap_windows_api {
                 WindowsAndMessaging::{
                     GetMessageA, GetSystemMetrics, MessageBoxA, RegisterClassExA,
                     SetWindowsHookExA, UnhookWindowsHookEx, HHOOK, HOOKPROC, MESSAGEBOX_RESULT,
-                    MESSAGEBOX_STYLE, MSG, SHOW_WINDOW_CMD, SM_CXSCREEN, SM_CYSCREEN,
+                    MESSAGEBOX_STYLE, MSG, SHOW_WINDOW_CMD,
                     SYSTEM_METRICS_INDEX, WINDOWS_HOOK_ID, WNDCLASSEXA,
                 },
             },
@@ -158,40 +158,20 @@ pub mod wrap_windows_api {
         }
     }
 
-    pub struct Resolution {
-        pub scrw: i32,
-        pub scrh: i32,
-    }
-
-    impl Resolution {
-        fn new() -> Self {
-            Self {
-                scrw: Self::wrap_with_result(SM_CXSCREEN).unwrap(),
-                scrh: Self::wrap_with_result(SM_CYSCREEN).unwrap(),
-            }
-        }
-
-        fn wrap_with_result(nindex: SYSTEM_METRICS_INDEX) -> Result<i32, WinError> {
-            unsafe {
-                match GetSystemMetrics(nindex) {
-                    // GetLastError() does not provide extended error
-                    0 => {
-                        write_log(
-                            LogType::ERROR,
-                            LogLocation::ALL,
-                            "Failed GetSystemMetrics function",
-                        );
-                        Err(WinError::Failed)
-                    }
-                    value => Ok(value),
+    pub fn wrap_get_system_metrics(nindex: SYSTEM_METRICS_INDEX) -> Result<i32, WinError> {
+        unsafe {
+            match GetSystemMetrics(nindex) {
+                // GetLastError() does not provide extended error
+                0 => {
+                    write_log(
+                        LogType::ERROR,
+                        LogLocation::ALL,
+                        "Failed GetSystemMetrics function",
+                    );
+                    Err(WinError::Failed)
                 }
+                value => Ok(value),
             }
-        }
-    }
-
-    impl Default for Resolution {
-        fn default() -> Self {
-            Self::new()
         }
     }
 

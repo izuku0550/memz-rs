@@ -3,8 +3,7 @@ use memz_rs::{
     ntdll::{library::Library, ntdll_api::RtlAdjustPrivilegeFn},
     wrap_windows_api::{
         lstrcmp_w, wrap_close_handle, wrap_create_toolhelp32_snapshot, wrap_get_proc_address,
-        wrap_get_process_image_filename_a, wrap_load_library_a, wrap_process32_next, Resolution,
-        WinError,
+        wrap_get_process_image_filename_a, wrap_load_library_a, wrap_process32_next, WinError, wrap_get_system_metrics,
     },
     LMEM_ZEROINIT,
 };
@@ -13,7 +12,7 @@ use windows::{
     core::{strlen, wcslen, PCSTR, PCWSTR},
     Win32::{
         Foundation::NTSTATUS,
-        System::Diagnostics::ToolHelp::{Process32First, PROCESSENTRY32},
+        System::Diagnostics::ToolHelp::{Process32First, PROCESSENTRY32}, UI::WindowsAndMessaging::{SM_CXSCREEN, SM_CYSCREEN},
     },
 };
 
@@ -43,10 +42,14 @@ fn convert_str_to_pcwstr() {
 }
 
 #[test]
-fn resolution_new() {
-    let resolution = Resolution::default();
-    assert!(resolution.scrh > 0);
-    assert!(resolution.scrw > 0);
+fn resolution_new() -> Result<(), WinError>{
+    let (scrw, scrh) = (
+        wrap_get_system_metrics(SM_CXSCREEN)?,
+        wrap_get_system_metrics(SM_CYSCREEN)?,
+    );
+    assert!(scrh > 0);
+    assert!(scrw > 0);
+    Ok(())
 }
 
 #[test]
