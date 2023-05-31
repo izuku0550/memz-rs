@@ -1,4 +1,5 @@
 pub const LMEM_ZEROINIT: u8 = 0;
+pub const GMEM_ZEROINIT: u16 = 0;
 
 pub mod data;
 pub mod memz;
@@ -107,6 +108,7 @@ pub mod wrap_windows_api {
 
     use crate::convert_str::{ToPCSTRWrapper, ToPCWSTRWrapper};
     use crate::utils::log::{write_log, LogLocation, LogType};
+    use windows::Win32::UI::WindowsAndMessaging::{LoadIconA, HICON};
     use windows::{
         core::PCWSTR,
         imp::{GetProcAddress, LoadLibraryA},
@@ -139,8 +141,8 @@ pub mod wrap_windows_api {
                 WindowsAndMessaging::{
                     GetMessageA, GetSystemMetrics, MessageBoxA, RegisterClassExA,
                     SetWindowsHookExA, UnhookWindowsHookEx, HHOOK, HOOKPROC, MESSAGEBOX_RESULT,
-                    MESSAGEBOX_STYLE, MSG, SHOW_WINDOW_CMD,
-                    SYSTEM_METRICS_INDEX, WINDOWS_HOOK_ID, WNDCLASSEXA,
+                    MESSAGEBOX_STYLE, MSG, SHOW_WINDOW_CMD, SYSTEM_METRICS_INDEX, WINDOWS_HOOK_ID,
+                    WNDCLASSEXA,
                 },
             },
         },
@@ -713,6 +715,43 @@ pub mod wrap_windows_api {
                         ),
                     );
                     None
+                }
+            }
+        }
+    }
+
+    pub fn wrap_load_icon_a<T>(hinstance: HMODULE, lpiconname: T) -> windows::core::Result<HICON>
+    where
+        T: ToPCSTRWrapper,
+    {
+        let lpiconname = *lpiconname.to_pcstr();
+        unsafe {
+            match LoadIconA(hinstance, lpiconname) {
+                Ok(v) => {
+                    #[cfg(feature = "DEBUG_MODE")]
+                    write_log(LogType::INFO, LogLocation::ALL, "SUCCESS LoadIconA()");
+                    Ok(v)
+                }
+                Err(e) => {
+                    #[cfg(not(feature = "DEBUG_MODE"))]
+                    write_log(
+                        LogType::ERROR,
+                        LogLocation::MSG,
+                        &format!(
+                            "Failed LoadIconA()\n{e}\nGetLastError: {:?}",
+                            GetLastError()
+                        ),
+                    );
+                    #[cfg(feature = "DEBUG_MODE")]
+                    write_log(
+                        LogType::ERROR,
+                        LogLocation::ALL,
+                        &format!(
+                            "Failed LoadIconA()\n{e}\nGetLastError: {:?}",
+                            GetLastError()
+                        ),
+                    );
+                    Err(e)
                 }
             }
         }
