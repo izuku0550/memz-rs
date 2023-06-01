@@ -2,7 +2,6 @@ pub const LMEM_ZEROINIT: u8 = 0;
 pub const GMEM_ZEROINIT: u16 = 0;
 
 pub mod data;
-pub mod memz;
 pub mod ntdll;
 pub mod payloads;
 pub mod utils;

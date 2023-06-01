@@ -49,8 +49,8 @@ fn main() -> Result<(), WinError> {
 
     let mut boot_code = vec![LMEM_ZEROINIT; 65536];
 
-    boot_code[..CODE1_LEN].copy_from_slice(&CODE1[..CODE1_LEN]); // Copy code1 in boot_code
-    boot_code[..CODE1_LEN + CODE2_LEN + 0x1fe].copy_from_slice(&CODE2[..CODE2_LEN]); // Copy code2 in boot_code
+    boot_code[..CODE1_LEN].copy_from_slice(&CODE1[..CODE1_LEN]);
+    boot_code[0x1fe..(0x1fe + CODE2_LEN)].copy_from_slice(&CODE2[..CODE2_LEN]);
 
     let mut wb: DWORD = Default::default();
 
