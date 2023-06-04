@@ -28,7 +28,6 @@ pub const SITES: &[&str] = &[
 	"http://google.co.ck/search?q=john+cena+midi+legit+not+converted",
 	"http://google.co.ck/search?q=vinesauce+meme+collection",
 	"http://google.co.ck/search?q=skrillex+scay+onster+an+nice+sprites+midi",
-	"http://answers.microsoft.com/en-us/protect/forum/protect_other-protect_scanning/memz-malwarevirus-trojan-completely-destroying/268bc1c2-39f4-42f8-90c2-597a673b6b45",
 	"http://motherboard.vice.com/read/watch-this-malware-turn-a-computer-into-a-digital-hellscape",
 	"http://play.clubpenguin.com",
 	"http://pcoptimizerpro.com",

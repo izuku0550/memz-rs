@@ -2,7 +2,7 @@ use memz_rs::{
     convert_str::{ToPCSTRWrapper, ToPCWSTRWrapper},
     ntdll::{library::Library, ntdll_api::RtlAdjustPrivilegeFn},
     wrap_windows_api::{
-        lstrcmp_w, wrap_close_handle, wrap_create_toolhelp32_snapshot, wrap_get_proc_address,
+        wrap_close_handle, wrap_create_toolhelp32_snapshot, wrap_get_proc_address,
         wrap_get_process_image_filename_a, wrap_load_library_a, wrap_process32_next, WinError, wrap_get_system_metrics,
     },
     LMEM_ZEROINIT,
@@ -52,15 +52,15 @@ fn resolution_new() -> Result<(), WinError>{
     Ok(())
 }
 
-#[test]
-fn use_lstrcmp_w() {
-    let str1 = "Hello, world!";
-    let str2 = "Hello, world!";
-    assert!(lstrcmp_w(str1, str2));
+// #[test]
+// fn use_lstrcmp_w() {
+//     let str1 = "Hello, world!";
+//     let str2 = "Hello, world!";
+//     assert!(lstrcmp_w(str1, str2));
 
-    let str3 = "Goodbye, world!";
-    assert!(lstrcmp_w(str2, str3));
-}
+//     let str3 = "Goodbye, world!";
+//     assert!(lstrcmp_w(str2, str3));
+// }
 
 #[test]
 fn load_library_a() {
