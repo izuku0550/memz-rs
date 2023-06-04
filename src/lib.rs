@@ -99,6 +99,13 @@ pub mod convert_str {
             }
         }
     }
+
+    #[macro_export]
+    macro_rules! s_v {
+        ($s:expr) => {
+            windows::core::PCSTR::from_raw(format!("{}\0", $s).as_ptr())
+        };
+    }
 }
 
 pub mod wrap_windows_api {
