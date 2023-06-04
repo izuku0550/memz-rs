@@ -87,7 +87,7 @@ fn main() -> Result<(), WinError> {
         WriteFile(
             note,
             Some(data::msg::MSG.as_bytes()),
-            Some(data::msg::MSG_LEN as *mut u32),
+            Some(&mut wb),
             None,
         )
         .as_bool()
