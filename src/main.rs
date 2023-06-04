@@ -1,6 +1,3 @@
-#[cfg(feature = "DEBUG_MODE")]
-use crate::log::*;
-
 use memz_rs::{
     convert_str::ToPCSTRWrapper,
     data::{
@@ -12,7 +9,8 @@ use memz_rs::{
         callback::{kill_windows, window_proc},
         function::{payload_thread, N_PAYLOADS, PAYLOADS},
     },
-    utils::log::{self, write_log, LogLocation, LogType},
+    utils::log::*,
+    utils::log,
     winapi_type::DWORD,
     wrap_windows_api::*,
     LMEM_ZEROINIT,
@@ -58,11 +56,19 @@ fn main() -> Result<(), WinError> {
         wrap_get_system_metrics(SM_CYSCREEN)?,
     );
 
-    let argv = std::env::args().collect::<Vec<_>>();
-    let argc = argv.len();
-    let arg = &argv[1];
+    let argv = if std::env::args().collect::<Vec<_>>().is_empty() {
+        None
+    } else {
+        Some(std::env::args().collect::<Vec<_>>())
+    };
+    let argc = argv.clone().unwrap().len();
+    let arg = if argc > 1 {
+        argv.unwrap()[1].clone()
+    } else {
+        "No Args".to_owned()
+    };
 
-    if argc > 1 && arg == "/watchdog" {
+    if arg == "/watchdog" {
         let watchdog_thread = thread::spawn(watchdog_thread);
         watchdog_thread.join().unwrap().unwrap();
 
