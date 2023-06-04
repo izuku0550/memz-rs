@@ -84,13 +84,13 @@ fn main() -> Result<(), WinError> {
     .unwrap();
 
     if !unsafe {
-        dbg!(WriteFile(
+        WriteFile(
             note,
             Some(data::msg::MSG.as_bytes()),
-            Some(&mut wb),
+            Some(data::msg::MSG_LEN as *mut u32),
             None,
         )
-        .as_bool())
+        .as_bool()
     } {
         #[cfg(not(feature = "DEBUG_MODE"))]
         eprintln!("Failed WriteFile()\nGetLastError: {:?}", unsafe {
