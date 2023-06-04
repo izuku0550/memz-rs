@@ -110,7 +110,7 @@ pub unsafe extern "system" fn window_proc(
     }
 }
 
-fn kill_windows() -> Result<(), WinError> {
+pub fn kill_windows() -> Result<(), WinError> {
     for _ in 0..20 {
         let rip_message_thread = thread::spawn(move || -> Result<(), WinError> {
             let hook = wrap_set_windows_hook_ex_a(
