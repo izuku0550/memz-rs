@@ -115,9 +115,6 @@ pub mod wrap_windows_api {
 
     use crate::convert_str::{ToPCSTRWrapper, ToPCWSTRWrapper};
     use crate::utils::log::{write_log, LogLocation, LogType};
-    use windows::Win32::System::ProcessStatus::GetModuleFileNameExW;
-    use windows::Win32::UI::Shell::ShellExecuteW;
-    use windows::Win32::UI::WindowsAndMessaging::{LoadIconA, HICON};
     use windows::{
         core::PCWSTR,
         imp::{GetProcAddress, LoadLibraryA},
@@ -144,14 +141,16 @@ pub mod wrap_windows_api {
                     GetCurrentProcess, GetCurrentThreadId, OpenProcessToken, SetPriorityClass,
                     PROCESS_CREATION_FLAGS,
                 },
+                LibraryLoader::GetModuleFileNameW
             },
             UI::{
                 WindowsAndMessaging::{
                     GetMessageA, GetSystemMetrics, MessageBoxA, RegisterClassExA,
                     SetWindowsHookExA, UnhookWindowsHookEx, HHOOK, HOOKPROC, MESSAGEBOX_RESULT,
                     MESSAGEBOX_STYLE, MSG, SHOW_WINDOW_CMD, SYSTEM_METRICS_INDEX, WINDOWS_HOOK_ID,
-                    WNDCLASSEXA,
+                    WNDCLASSEXA, LoadIconA, HICON
                 },
+                Shell::ShellExecuteW
             },
         },
     };
@@ -542,12 +541,11 @@ pub mod wrap_windows_api {
     }
 
     pub fn wrap_get_module_file_name(
-        hprocess: HANDLE,
         hmodule: HMODULE,
         lpfilename: &mut [u16],
     ) -> Result<u32, WinError> {
         unsafe {
-            match GetModuleFileNameExW(hprocess, hmodule, lpfilename) {
+            match GetModuleFileNameW(hmodule, lpfilename) {
                 0 => {
                     #[cfg(not(feature = "DEBUG_MODE"))]
                     write_log(

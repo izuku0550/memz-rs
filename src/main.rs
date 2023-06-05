@@ -134,9 +134,8 @@ fn main() -> Result<(), WinError> {
 
         let mut fn_buf = vec![LMEM_ZEROINIT; 16384]; // alloc 8192 * 2
         wrap_get_module_file_name(
-            HANDLE::default(),
-            HMODULE(8192_isize),
-            fn_buf.as_mut_slice(),
+            HMODULE::default(),
+            &mut fn_buf,
         )?;
 
         let path = String::from_utf16(&fn_buf).expect("Cannot convert fn_buf");
