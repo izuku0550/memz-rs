@@ -139,7 +139,8 @@ fn main() -> Result<(), WinError> {
         )?;
 
         let path = String::from_utf16(&fn_buf).expect("Cannot convert fn_buf");
-
+        let path = path.replace('\0', "");
+        
         for _ in 0..5 {
             wrap_shell_execute_w(
                 HWND(0),
