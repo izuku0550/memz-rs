@@ -40,7 +40,7 @@ use windows::{
         },
         UI::{
             Shell::{
-                ShellExecuteExW, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOA, SHELLEXECUTEINFOW,
+                ShellExecuteExW, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW,
             },
             WindowsAndMessaging::{
                 CreateWindowExA, DispatchMessageA, TranslateMessage, CS_HREDRAW, CS_VREDRAW,
@@ -48,7 +48,7 @@ use windows::{
                 SM_CYSCREEN, SW_SHOWDEFAULT, WINDOW_EX_STYLE, WINDOW_STYLE, WNDCLASSEXA,
             },
         },
-    },
+    }, w,
 };
 
 fn main() -> Result<(), WinError> {
@@ -148,13 +148,13 @@ fn main() -> Result<(), WinError> {
         wrap_get_module_file_name(HMODULE::default(), &mut fn_buf)?;
 
         let path = String::from_utf16(&fn_buf).expect("Cannot convert fn_buf");
-        let path = path.replace('\0', "");
-
+        let file_path = path.replace('\0', "");
+        dbg!(&file_path);
         for _ in 0..5 {
             wrap_shell_execute_w(
                 HWND(0),
                 PCWSTR::null(),
-                path.as_str(),
+                *file_path.as_str().to_pcwstr(),
                 "/watchdog",
                 PCWSTR::null(),
                 SW_SHOWDEFAULT,
@@ -164,13 +164,13 @@ fn main() -> Result<(), WinError> {
         let mut info = SHELLEXECUTEINFOW {
             cbSize: size_of::<SHELLEXECUTEINFOW>() as u32,
             fMask: SEE_MASK_NOCLOSEPROCESS,
-            hwnd: HWND(0),
+            hwnd: HWND::default(),
             lpVerb: PCWSTR::null(),
-            lpFile: *path.as_str().to_pcwstr(),
-            lpParameters: *"/main".to_pcwstr(),
+            lpFile: *file_path.as_str().to_pcwstr(),
+            lpParameters: w!("/main"),
             lpDirectory: PCWSTR::null(),
             nShow: SW_SHOWDEFAULT.0 as i32,
-            hInstApp: HMODULE(0),
+            hInstApp: HMODULE::default(),
             ..Default::default()
         };
 
