@@ -110,7 +110,7 @@ fn payload_execute(times: i32, _runtime: i32) -> i32 {
         PCWSTR::null(),
         SW_SHOWDEFAULT,
     )
-    .expect("Failed ShellExecuteA()");
+    .expect("Failed ShellExecuteW()");
 
     (1500.0 / (times as f32 / 15.0 + 1.0) + 100.0 + (rand::random::<f32>() % 200.0)) as i32
 }

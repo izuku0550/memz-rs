@@ -599,19 +599,19 @@ pub mod wrap_windows_api {
                     write_log(
                         LogType::ERROR,
                         LogLocation::MSG,
-                        &format!("ShellExecuteA failed with error code: {:?}", res),
+                        &format!("ShellExecuteW failed with error code: {:?}", res),
                     );
                     #[cfg(feature = "DEBUG_MODE")]
                     write_log(
                         LogType::ERROR,
                         LogLocation::ALL,
-                        &format!("ShellExecuteA failed with error code: {:?}", res),
+                        &format!("ShellExecuteW failed with error code: {:?}", res),
                     );
                     Err(WinError::Failed)
                 }
                 v => {
                     #[cfg(feature = "DEBUG_MODE")]
-                    write_log(LogType::INFO, LogLocation::ALL, "ShellExecuteA successed");
+                    write_log(LogType::INFO, LogLocation::ALL, "ShellExecuteW successed");
                     Ok(v)
                 }
             }
