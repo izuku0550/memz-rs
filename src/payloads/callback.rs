@@ -20,12 +20,13 @@ use crate::{
         library::Library,
         ntdll_api::{NtRaiseHardErrorFn, RtlAdjustPrivilegeFn},
     },
+    s_v,
     utils::log::{write_log, LogLocation, LogType},
     wrap_windows_api::{
         wrap_get_current_thread_id, wrap_get_system_metrics, wrap_messagebox_a,
         wrap_set_windows_hook_ex_a, wrap_unhook_windows_hook_ex, WinError,
     },
-    GMEM_ZEROINIT, s_v,
+    GMEM_ZEROINIT,
 };
 
 /// # Safety

