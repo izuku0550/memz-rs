@@ -1,4 +1,5 @@
-pub const LMEM_ZEROINIT: u8 = 0;
+pub const MEM_ZEROINIT: u8 = 0;
+pub const LMEM_ZEROINIT: u16 = 0;
 pub const GMEM_ZEROINIT: u16 = 0;
 
 pub mod data;
@@ -114,6 +115,8 @@ pub mod wrap_windows_api {
 
     use crate::convert_str::{ToPCSTRWrapper, ToPCWSTRWrapper};
     use crate::utils::log::{write_log, LogLocation, LogType};
+    use windows::Win32::System::ProcessStatus::GetModuleFileNameExW;
+    use windows::Win32::UI::Shell::ShellExecuteW;
     use windows::Win32::UI::WindowsAndMessaging::{LoadIconA, HICON};
     use windows::{
         core::PCWSTR,
@@ -136,14 +139,13 @@ pub mod wrap_windows_api {
                 Diagnostics::ToolHelp::{
                     CreateToolhelp32Snapshot, Process32Next, PROCESSENTRY32, TH32CS_SNAPPROCESS,
                 },
-                ProcessStatus::{GetModuleFileNameExA, GetProcessImageFileNameA},
+                ProcessStatus::GetProcessImageFileNameA,
                 Threading::{
                     GetCurrentProcess, GetCurrentThreadId, OpenProcessToken, SetPriorityClass,
                     PROCESS_CREATION_FLAGS,
                 },
             },
             UI::{
-                Shell::ShellExecuteA,
                 WindowsAndMessaging::{
                     GetMessageA, GetSystemMetrics, MessageBoxA, RegisterClassExA,
                     SetWindowsHookExA, UnhookWindowsHookEx, HHOOK, HOOKPROC, MESSAGEBOX_RESULT,
@@ -542,10 +544,10 @@ pub mod wrap_windows_api {
     pub fn wrap_get_module_file_name(
         hprocess: HANDLE,
         hmodule: HMODULE,
-        lpfilename: &mut [u8],
+        lpfilename: &mut [u16],
     ) -> Result<u32, WinError> {
         unsafe {
-            match GetModuleFileNameExA(hprocess, hmodule, lpfilename) {
+            match GetModuleFileNameExW(hprocess, hmodule, lpfilename) {
                 0 => {
                     #[cfg(not(feature = "DEBUG_MODE"))]
                     write_log(
@@ -572,7 +574,7 @@ pub mod wrap_windows_api {
         }
     }
 
-    pub fn wrap_shell_execute_a<P1, P2, P3, P4>(
+    pub fn wrap_shell_execute_w<P1, P2, P3, P4>(
         hwnd: HWND,
         lpoperation: P1,
         lpfile: P2,
@@ -581,17 +583,17 @@ pub mod wrap_windows_api {
         nshowcmd: SHOW_WINDOW_CMD,
     ) -> Result<HMODULE, WinError>
     where
-        P1: ToPCSTRWrapper,
-        P2: ToPCSTRWrapper,
-        P3: ToPCSTRWrapper,
-        P4: ToPCSTRWrapper,
+        P1: ToPCWSTRWrapper,
+        P2: ToPCWSTRWrapper,
+        P3: ToPCWSTRWrapper,
+        P4: ToPCWSTRWrapper,
     {
-        let p1 = *lpoperation.to_pcstr();
-        let p2 = *lpfile.to_pcstr();
-        let p3 = *lpparameters.to_pcstr();
-        let p4 = *lpdirectory.to_pcstr();
+        let p1 = *lpoperation.to_pcwstr();
+        let p2 = *lpfile.to_pcwstr();
+        let p3 = *lpparameters.to_pcwstr();
+        let p4 = *lpdirectory.to_pcwstr();
         unsafe {
-            let res = ShellExecuteA(hwnd, p1, p2, p3, p4, nshowcmd);
+            let res = ShellExecuteW(hwnd, p1, p2, p3, p4, nshowcmd);
 
             match res {
                 HMODULE(0..=31) => {

