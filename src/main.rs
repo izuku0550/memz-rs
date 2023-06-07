@@ -353,11 +353,14 @@ fn watchdog_thread() -> Result<(), WinError> {
                             #[cfg(not(feature = "DEBUG_MODE"))]
                             panic!("{}\n{e:?}\n", data);
                             #[cfg(feature = "DEBUG_MODE")]
-                            write_log(
-                                LogType::ERROR,
-                                LogLocation::LOG,
-                                &format!("{}\n{}\n", data, dbg!(&e)),
-                            );
+                            {
+                                write_log(
+                                    LogType::ERROR,
+                                    LogLocation::LOG,
+                                    &format!("{}\n{}\n", data, dbg!(&e)),
+                                );
+                                None
+                            }
                         }
                     };
                 }
