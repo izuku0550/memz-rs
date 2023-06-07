@@ -1,5 +1,6 @@
+#[cfg(feature = "DEBUG_MODE")]
 use chrono::Local;
-
+#[cfg(feature = "DEBUG_MODE")]
 use log::{error, info, LevelFilter};
 #[cfg(feature = "DEBUG_MODE")]
 use log4rs::{
@@ -8,6 +9,7 @@ use log4rs::{
     encode::pattern::PatternEncoder,
     Config,
 };
+
 pub enum LogType {
     ERROR,
     INFO,

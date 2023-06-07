@@ -8,13 +8,18 @@ use super::{
     callback::{enum_child_proc, msg_box_hook},
     define::{Payload, PAYLOAD},
 };
+
+#[cfg(feature = "DEBUG_MODE")]
+use crate::utils::log::*;
+#[cfg(feature = "DEBUG_MODE")]
+use windows::Win32::Foundation::GetLastError;
+
 use crate::{
     convert_str::ToPCSTRWrapper,
     data::{
         msg::{n_sounds, SOUNDS},
         sites::{N_SITES, SITES},
     },
-    utils::log::{write_log, LogLocation, LogType},
     wrap_windows_api::{
         wrap_get_current_thread_id, wrap_get_system_metrics, wrap_load_icon_a, wrap_messagebox_a,
         wrap_set_windows_hook_ex_a, wrap_shell_execute_w, wrap_unhook_windows_hook_ex, WinError,
@@ -23,7 +28,7 @@ use crate::{
 use windows::{
     core::{PCSTR, PCWSTR},
     Win32::{
-        Foundation::{GetLastError, HMODULE, HWND, LPARAM, POINT, RECT},
+        Foundation::{HMODULE, HWND, LPARAM, POINT, RECT},
         Graphics::Gdi::{BitBlt, GetWindowDC, ReleaseDC, StretchBlt, NOTSRCCOPY, SRCCOPY},
         Media::Audio::{PlaySoundA, SND_ASYNC},
         System::LibraryLoader::GetModuleHandleA,
@@ -163,15 +168,6 @@ fn payload_keyboard(_: i32, _: i32) -> i32 {
     unsafe {
         match SendInput(&[input], size_of::<INPUT>() as i32) {
             0 => {
-                #[cfg(not(feature = "DEBUG_MODE"))]
-                write_log(
-                    LogType::ERROR,
-                LogLocation::MSG,
-                &format!(
-                        "Failed SendInput()\nError: Input was already blocked by another thread\nGetLastError: {:?}", 
-                        GetLastError()
-                    )
-                );
                 #[cfg(feature = "DEBUG_MODE")]
                 write_log(
                     LogType::ERROR,
@@ -201,16 +197,8 @@ fn payload_sound(_times: i32, _runtime: i32) -> i32 {
                 );
                 Some(v)
             }
+            #[allow(unused_variables)]
             Err(e) => {
-                #[cfg(not(feature = "DEBUG_MODE"))]
-                write_log(
-                    LogType::ERROR,
-                    LogLocation::MSG,
-                    &format!(
-                        "Failed GetModuleHandleA()\nError: {e}\nGetLastError: {:?}",
-                        GetLastError()
-                    ),
-                );
                 #[cfg(feature = "DEBUG_MODE")]
                 write_log(
                     LogType::ERROR,
@@ -236,15 +224,6 @@ fn payload_sound(_times: i32, _runtime: i32) -> i32 {
                 write_log(LogType::INFO, LogLocation::ALL, "SUCCESS PlaySoundA()");
             }
             false => {
-                #[cfg(not(feature = "DEBUG_MODE"))]
-                write_log(
-                    LogType::ERROR,
-                LogLocation::MSG,
-                &format!(
-                        "Failed PlaySoundA()\nError: function can find neither the system default entry nor the default sound\nGetLastError: {:?}", 
-                        GetLastError()
-                    )
-                );
                 #[cfg(feature = "DEBUG_MODE")]
                 write_log(
                     LogType::ERROR,
@@ -271,12 +250,6 @@ fn payload_blink(_times: i32, _runtime: i32) -> i32 {
                 write_log(LogType::INFO, LogLocation::ALL, "SUCCESS GetWindowRect()");
             }
             false => {
-                #[cfg(not(feature = "DEBUG_MODE"))]
-                write_log(
-                    LogType::ERROR,
-                    LogLocation::MSG,
-                    &format!("Failed GetWindowRect()\nGetLastError: {:?}", GetLastError()),
-                );
                 #[cfg(feature = "DEBUG_MODE")]
                 write_log(
                     LogType::ERROR,
@@ -303,12 +276,6 @@ fn payload_blink(_times: i32, _runtime: i32) -> i32 {
                 write_log(LogType::INFO, LogLocation::ALL, "SUCCESS BitBlt()");
             }
             false => {
-                #[cfg(not(feature = "DEBUG_MODE"))]
-                write_log(
-                    LogType::ERROR,
-                    LogLocation::MSG,
-                    &format!("Failed BitBlt()\nGetLastError: {:?}", GetLastError()),
-                );
                 #[cfg(feature = "DEBUG_MODE")]
                 write_log(
                     LogType::ERROR,
@@ -352,8 +319,6 @@ fn payload_draw_errors(times: i32, _runtime: i32) -> i32 {
             );
         }
         if ReleaseDC(hwnd, hdc) == 0 {
-            #[cfg(not(feature = "DEBUG_MODE"))]
-            write_log(LogType::ERROR, LogLocation::MSG, "Failed ReleaseDC()\n");
             #[cfg(feature = "DEBUG_MODE")]
             write_log(LogType::ERROR, LogLocation::ALL, "Failed ReleaseDC()\n");
         } else {
@@ -392,8 +357,6 @@ fn payload_pip(times: i32, _runtime: i32) -> i32 {
         )
         .as_bool()
         {
-            #[cfg(not(feature = "DEBUG_MODE"))]
-            write_log(LogType::ERROR, LogLocation::MSG, "Failed StretchBlt()\n");
             #[cfg(feature = "DEBUG_MODE")]
             write_log(LogType::ERROR, LogLocation::ALL, "Failed StretchBlt()\n");
         } else {
@@ -401,8 +364,6 @@ fn payload_pip(times: i32, _runtime: i32) -> i32 {
             write_log(LogType::INFO, LogLocation::ALL, "SUCCESS StretchBlt()");
         }
         if ReleaseDC(hwnd, hdc) == 0 {
-            #[cfg(not(feature = "DEBUG_MODE"))]
-            write_log(LogType::ERROR, LogLocation::MSG, "Failed ReleaseDC()\n");
             #[cfg(feature = "DEBUG_MODE")]
             write_log(LogType::ERROR, LogLocation::ALL, "Failed ReleaseDC()\n");
         } else {
@@ -424,12 +385,6 @@ fn payload_puzzle(times: i32, _runtime: i32) -> i32 {
                 write_log(LogType::INFO, LogLocation::ALL, "SUCCESS GetWindowRect()");
             }
             false => {
-                #[cfg(not(feature = "DEBUG_MODE"))]
-                write_log(
-                    LogType::ERROR,
-                    LogLocation::MSG,
-                    &format!("Failed GetWindowRect()\nGetLastError: {:?}", GetLastError()),
-                );
                 #[cfg(feature = "DEBUG_MODE")]
                 write_log(
                     LogType::ERROR,
@@ -452,12 +407,6 @@ fn payload_puzzle(times: i32, _runtime: i32) -> i32 {
                 write_log(LogType::INFO, LogLocation::ALL, "SUCCESS BitBlt()");
             }
             false => {
-                #[cfg(not(feature = "DEBUG_MODE"))]
-                write_log(
-                    LogType::ERROR,
-                    LogLocation::MSG,
-                    &format!("Failed BitBlt()\nGetLastError: {:?}", GetLastError()),
-                );
                 #[cfg(feature = "DEBUG_MODE")]
                 write_log(
                     LogType::ERROR,
@@ -468,8 +417,6 @@ fn payload_puzzle(times: i32, _runtime: i32) -> i32 {
         }
 
         if ReleaseDC(hwnd, hdc) == 0 {
-            #[cfg(not(feature = "DEBUG_MODE"))]
-            write_log(LogType::ERROR, LogLocation::MSG, "Failed ReleaseDC()\n");
             #[cfg(feature = "DEBUG_MODE")]
             write_log(LogType::ERROR, LogLocation::ALL, "Failed ReleaseDC()\n");
         } else {

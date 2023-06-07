@@ -279,6 +279,7 @@ pub mod wrap_windows_api {
     ) -> Result<HHOOK, WinError> {
         unsafe {
             match SetWindowsHookExA(idhook, lpfn, hmod, dwthreadid) {
+                #[allow(unused_variables)]
                 Err(e) => {
                     #[cfg(feature = "DEBUG_MODE")]
                     write_log(
@@ -565,12 +566,6 @@ pub mod wrap_windows_api {
 
             match res {
                 HMODULE(0..=31) => {
-                    #[cfg(not(feature = "DEBUG_MODE"))]
-                    write_log(
-                        LogType::ERROR,
-                        LogLocation::MSG,
-                        &format!("ShellExecuteW failed with error code: {:?}", res),
-                    );
                     #[cfg(feature = "DEBUG_MODE")]
                     write_log(
                         LogType::ERROR,
@@ -595,15 +590,6 @@ pub mod wrap_windows_api {
         unsafe {
             match SetPriorityClass(h_process, PROCESS_CREATION_FLAGS(dw_priority_class)) {
                 BOOL(0) => {
-                    #[cfg(not(feature = "DEBUG_MODE"))]
-                    write_log(
-                        LogType::ERROR,
-                        LogLocation::MSG,
-                        &format!(
-                            "SetPriorityClass failed with GetLastError():\n: {:?}",
-                            GetLastError()
-                        ),
-                    );
                     #[cfg(feature = "DEBUG_MODE")]
                     write_log(
                         LogType::ERROR,
@@ -644,16 +630,6 @@ pub mod wrap_windows_api {
                 htemplatefile,
             ) {
                 Ok(INVALID_HANDLE_VALUE) => {
-                    #[cfg(not(feature = "DEBUG_MODE"))]
-                    write_log(
-                        LogType::ERROR,
-                        LogLocation::MSG,
-                        &format!(
-                            "Failed CreateFileA()\nError: INVALID_HANDLE_VALUE\nGetLastError: {:?}",
-                            GetLastError()
-                        ),
-                    );
-
                     #[cfg(feature = "DEBUG_MODE")]
                     write_log(
                         LogType::ERROR,
@@ -670,17 +646,8 @@ pub mod wrap_windows_api {
                     write_log(LogType::INFO, LogLocation::ALL, "CreateFileA successed");
                     Some(handle)
                 }
+                #[allow(unused_variables)]
                 Err(e) => {
-                    #[cfg(not(feature = "DEBUG_MODE"))]
-                    write_log(
-                        LogType::ERROR,
-                        LogLocation::MSG,
-                        &format!(
-                            "Failed CreateFileA()\nError: {e:?}\nGetLastError: {:?}",
-                            GetLastError()
-                        ),
-                    );
-
                     #[cfg(feature = "DEBUG_MODE")]
                     write_log(
                         LogType::ERROR,
@@ -709,15 +676,6 @@ pub mod wrap_windows_api {
                     Ok(v)
                 }
                 Err(e) => {
-                    #[cfg(not(feature = "DEBUG_MODE"))]
-                    write_log(
-                        LogType::ERROR,
-                        LogLocation::MSG,
-                        &format!(
-                            "Failed LoadIconA()\n{e}\nGetLastError: {:?}",
-                            GetLastError()
-                        ),
-                    );
                     #[cfg(feature = "DEBUG_MODE")]
                     write_log(
                         LogType::ERROR,

