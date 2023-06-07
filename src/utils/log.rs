@@ -1,5 +1,7 @@
 use chrono::Local;
+
 use log::{error, info, LevelFilter};
+#[cfg(feature = "DEBUG_MODE")]
 use log4rs::{
     append::file::FileAppender,
     config::{Appender, Logger, Root},
@@ -17,6 +19,7 @@ pub enum LogLocation {
     ALL,
 }
 
+#[cfg(feature = "DEBUG_MODE")]
 pub fn new_log() {
     let now = Local::now();
     let time = now.format("%Y-%m-%d_%H-%M-%S.log").to_string();
@@ -52,6 +55,7 @@ pub fn new_log() {
     log4rs::init_config(config).unwrap();
 }
 
+#[cfg(feature = "DEBUG_MODE")]
 pub fn write_log(log: LogType, location: LogLocation, text: &str) {
     match log {
         LogType::INFO => match location {

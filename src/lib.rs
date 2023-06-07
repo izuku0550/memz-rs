@@ -114,7 +114,8 @@ pub mod wrap_windows_api {
     use std::{ffi::c_void, mem::size_of, process};
 
     use crate::convert_str::{ToPCSTRWrapper, ToPCWSTRWrapper};
-    use crate::utils::log::{write_log, LogLocation, LogType};
+    #[cfg(feature = "DEBUG_MODE")]
+    use crate::utils::log::*;
     use windows::{
         core::PCWSTR,
         imp::{GetProcAddress, LoadLibraryA},
@@ -172,6 +173,7 @@ pub mod wrap_windows_api {
             match GetSystemMetrics(nindex) {
                 // GetLastError() does not provide extended error
                 0 => {
+                    #[cfg(feature = "DEBUG_MODE")]
                     write_log(
                         LogType::ERROR,
                         LogLocation::ALL,
@@ -203,6 +205,7 @@ pub mod wrap_windows_api {
         unsafe {
             match GetProcessImageFileNameA(GetCurrentProcess(), fn_buf) {
                 0 => {
+                    #[cfg(feature = "DEBUG_MODE")]
                     write_log(
                         LogType::ERROR,
                         LogLocation::ALL,
@@ -219,6 +222,7 @@ pub mod wrap_windows_api {
         unsafe {
             match CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) {
                 Ok(INVALID_HANDLE_VALUE) => {
+                    #[cfg(feature = "DEBUG_MODE")]
                     write_log(
                         LogType::ERROR,
                         LogLocation::ALL,
@@ -236,6 +240,7 @@ pub mod wrap_windows_api {
         unsafe {
             match CloseHandle(h_object) {
                 BOOL(0) => {
+                    #[cfg(feature = "DEBUG_MODE")]
                     write_log(
                         LogType::ERROR,
                         LogLocation::ALL,
@@ -254,6 +259,7 @@ pub mod wrap_windows_api {
                 BOOL(1) => true,
                 BOOL(0) => false,
                 _ => {
+                    #[cfg(feature = "DEBUG_MODE")]
                     write_log(
                         LogType::ERROR,
                         LogLocation::LOG,
@@ -274,6 +280,7 @@ pub mod wrap_windows_api {
         unsafe {
             match SetWindowsHookExA(idhook, lpfn, hmod, dwthreadid) {
                 Err(e) => {
+                    #[cfg(feature = "DEBUG_MODE")]
                     write_log(
                         LogType::ERROR,
                         LogLocation::ALL,
@@ -308,6 +315,7 @@ pub mod wrap_windows_api {
         unsafe {
             match MessageBoxA(hwnd, lptext, lpcaption, utype) {
                 MESSAGEBOX_RESULT(0) => {
+                    #[cfg(feature = "DEBUG_MODE")]
                     write_log(
                         LogType::ERROR,
                         LogLocation::ALL,
@@ -324,6 +332,7 @@ pub mod wrap_windows_api {
         unsafe {
             match UnhookWindowsHookEx(hhk) {
                 BOOL(0) => {
+                    #[cfg(feature = "DEBUG_MODE")]
                     write_log(
                         LogType::ERROR,
                         LogLocation::ALL,
@@ -347,6 +356,7 @@ pub mod wrap_windows_api {
         unsafe {
             match LoadLibraryA(name) {
                 0 => {
+                    #[cfg(feature = "DEBUG_MODE")]
                     write_log(
                         LogType::ERROR,
                         LogLocation::ALL,
@@ -367,6 +377,7 @@ pub mod wrap_windows_api {
         unsafe {
             let ret = GetProcAddress(library.0, name);
             if ret.is_null() {
+                #[cfg(feature = "DEBUG_MODE")]
                 write_log(
                     LogType::ERROR,
                     LogLocation::ALL,
@@ -401,6 +412,7 @@ pub mod wrap_windows_api {
             )
         };
         if !(lpv.as_bool() && opt.as_bool()) {
+            #[cfg(feature = "DEBUG_MODE")]
             write_log(
                 LogType::ERROR,
                 LogLocation::ALL,
@@ -433,16 +445,6 @@ pub mod wrap_windows_api {
         };
 
         if !atp.as_bool() {
-            #[cfg(not(feature = "DEBUG_MODE"))]
-            write_log(
-                LogType::ERROR,
-                LogLocation::MSG,
-                &format!(
-                    "Failed AdjustTokenPrivileges()\nGetLastError: {:?}",
-                    unsafe { GetLastError() }
-                ),
-            );
-
             #[cfg(feature = "DEBUG_MODE")]
             write_log(
                 LogType::ERROR,
@@ -458,13 +460,6 @@ pub mod wrap_windows_api {
 
         unsafe {
             if GetLastError() == ERROR_NOT_ALL_ASSIGNED {
-                #[cfg(not(feature = "DEBUG_MODE"))]
-                write_log(
-                    LogType::ERROR,
-                    LogLocation::MSG,
-                    "The token does not have the specified privilege.\n",
-                );
-
                 #[cfg(feature = "DEBUG_MODE")]
                 write_log(
                     LogType::ERROR,
@@ -485,15 +480,6 @@ pub mod wrap_windows_api {
         unsafe {
             match RegisterClassExA(param0) {
                 0 => {
-                    #[cfg(not(feature = "DEBUG_MODE"))]
-                    write_log(
-                        LogType::ERROR,
-                        LogLocation::MSG,
-                        &format!(
-                            "Failed RegisterClassExA()\nGetLastError: {:?}",
-                            GetLastError()
-                        ),
-                    );
                     #[cfg(feature = "DEBUG_MODE")]
                     write_log(
                         LogType::ERROR,
@@ -519,13 +505,6 @@ pub mod wrap_windows_api {
         unsafe {
             match GetMessageA(lpmsg, hwnd, wmsgfiltermin, wmsgfiltermax) {
                 BOOL(-1) => {
-                    #[cfg(not(feature = "DEBUG_MODE"))]
-                    write_log(
-                        LogType::ERROR,
-                        LogLocation::MSG,
-                        &format!("Failed GetMessageA()\nGetLastError: {:?}", GetLastError()),
-                    );
-
                     #[cfg(feature = "DEBUG_MODE")]
                     write_log(
                         LogType::ERROR,
@@ -547,15 +526,6 @@ pub mod wrap_windows_api {
         unsafe {
             match GetModuleFileNameW(hmodule, lpfilename) {
                 0 => {
-                    #[cfg(not(feature = "DEBUG_MODE"))]
-                    write_log(
-                        LogType::ERROR,
-                        LogLocation::MSG,
-                        &format!(
-                            "Failed GetModuleFileNameExA()\nGetLastError: {:?}",
-                            GetLastError()
-                        ),
-                    );
                     #[cfg(feature = "DEBUG_MODE")]
                     write_log(
                         LogType::ERROR,
