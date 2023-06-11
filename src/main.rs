@@ -84,13 +84,13 @@ fn main() -> Result<(), WinError> {
             lpfnWndProc: Some(window_proc),
             cbClsExtra: 0,
             cbWndExtra: 0,
-            hInstance: HMODULE(0),
-            hIcon: HICON(0),
-            hCursor: HCURSOR(0),
-            hbrBackground: HBRUSH(0),
+            hInstance: HMODULE::default(),
+            hIcon: HICON::default(),
+            hCursor: HCURSOR::default(),
+            hbrBackground: HBRUSH::default(),
             lpszMenuName: PCSTR::null(),
             lpszClassName: s!("hax"),
-            hIconSm: HICON(0),
+            hIconSm: HICON::default(),
         };
 
         wrap_register_class_ex_a(&c)?;
@@ -100,14 +100,14 @@ fn main() -> Result<(), WinError> {
                 WINDOW_EX_STYLE(0),
                 s!("hax"),
                 PCSTR::null(),
-                WINDOW_STYLE(0),
+                WINDOW_STYLE::default(),
                 0,
                 0,
                 100,
                 100,
-                HWND(0),
-                HMENU(0),
-                HMODULE(0),
+                HWND::default(),
+                HMENU::default(),
+                HMODULE::default(),
                 None,
             )
         };
