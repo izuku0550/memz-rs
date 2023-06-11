@@ -105,7 +105,7 @@ pub unsafe extern "system" fn window_proc(
     } else {
         let res = DefWindowProcA(dbg!(hwnd), dbg!(msg), dbg!(wparam), dbg!(lparam));
         if res.0 == 0 {
-            panic!("Failed DefWindowProcA()\n");
+            panic!("Failed DefWindowProcA(): {res:?}\n");
         } else {
             res
         }

