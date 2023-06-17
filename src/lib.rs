@@ -25,7 +25,7 @@ pub mod convert_str {
 
     impl ToPCSTR for &str {
         fn to_pcstr(&self) -> PCSTR {
-            PCSTR(self.as_ptr())
+            PCSTR(format!("{}\0", self).as_ptr())
         }
     }
 
@@ -53,13 +53,14 @@ pub mod convert_str {
 
     impl ToPCWSTR for &str {
         fn to_pcwstr(&self) -> PCWSTR {
-            PCWSTR(HSTRING::from(*self).as_ptr())
+            
+            PCWSTR(HSTRING::from(&format!("{}\0", self)).as_ptr())
         }
     }
 
     impl ToPCWSTR for String {
         fn to_pcwstr(&self) -> PCWSTR {
-            PCWSTR(HSTRING::from(self).as_ptr())
+            PCWSTR(HSTRING::from(&format!("{}\0", self)).as_ptr())
         }
     }
 
