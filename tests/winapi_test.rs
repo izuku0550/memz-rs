@@ -1,12 +1,11 @@
 use memz_rs::{
-    convert_str::{ToPCSTRWrapper, ToPCWSTRWrapper},
     ntdll::{library::Library, ntdll_api::RtlAdjustPrivilegeFn},
     wrap_windows_api::{
         wrap_close_handle, wrap_create_toolhelp32_snapshot, wrap_get_proc_address,
         wrap_get_process_image_filename_a, wrap_get_system_metrics, wrap_load_library_a,
         wrap_process32_next, WinError,
     },
-    MEM_ZEROINIT,
+    MEM_ZEROINIT, convert_str::{ToPCSTR, ToPCWSTR},
 };
 use std::{mem::size_of, ptr, slice};
 use windows::{

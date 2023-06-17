@@ -17,87 +17,49 @@ pub mod winapi_type {
 }
 
 pub mod convert_str {
-    // https://github.com/microsoft/windows-rs/issues/973#issuecomment-1363481060
-    use windows::core::{PCSTR, PCWSTR};
+    use windows::core::{HSTRING, PCSTR, PCWSTR};
 
-    pub struct PCWSTRWrapper {
-        text: PCWSTR,
-        // this is here to allow it to get dropped at the same time as the PCWSTR
-        #[allow(unused)]
-        _container: Vec<u16>,
+    pub trait ToPCSTR {
+        fn to_pcstr(&self) -> PCSTR;
     }
 
-    impl std::ops::Deref for PCWSTRWrapper {
-        type Target = PCWSTR;
-
-        fn deref(&self) -> &Self::Target {
-            &self.text
+    impl ToPCSTR for &str {
+        fn to_pcstr(&self) -> PCSTR {
+            PCSTR(self.as_ptr())
         }
     }
 
-    pub trait ToPCWSTRWrapper {
-        fn to_pcwstr(&self) -> PCWSTRWrapper;
-    }
-
-    impl ToPCWSTRWrapper for &str {
-        fn to_pcwstr(&self) -> PCWSTRWrapper {
-            // do not drop when scope ends, by moving it into struct
-            let mut text = self.encode_utf16().collect::<Vec<_>>();
-            text.push(0);
-
-            PCWSTRWrapper {
-                text: PCWSTR::from_raw(text.as_ptr()),
-                _container: text,
-            }
+    impl ToPCSTR for PCSTR {
+        fn to_pcstr(&self) -> PCSTR {
+            *self
         }
     }
 
-    impl ToPCWSTRWrapper for PCWSTR {
-        fn to_pcwstr(&self) -> PCWSTRWrapper {
-            PCWSTRWrapper {
-                text: *self,
-                _container: Vec::new(),
-            }
+    pub trait ToPCWSTR {
+        fn to_pcwstr(&self) -> PCWSTR;
+    }
+
+    impl ToPCWSTR for HSTRING {
+        fn to_pcwstr(&self) -> PCWSTR {
+            PCWSTR(self.as_ptr())
         }
     }
 
-    pub struct PCSTRWrapper {
-        text: PCSTR,
-        #[allow(unused)]
-        _container: Vec<u8>,
-    }
-
-    impl std::ops::Deref for PCSTRWrapper {
-        type Target = PCSTR;
-
-        fn deref(&self) -> &Self::Target {
-            &self.text
+    impl ToPCWSTR for PCWSTR {
+        fn to_pcwstr(&self) -> PCWSTR {
+            *self
         }
     }
 
-    pub trait ToPCSTRWrapper {
-        fn to_pcstr(&self) -> PCSTRWrapper;
-    }
-
-    impl ToPCSTRWrapper for &str {
-        fn to_pcstr(&self) -> PCSTRWrapper {
-            // https://stackoverflow.com/questions/47980023/how-to-convert-from-u8-to-vecu8
-            let mut text = self.as_bytes().to_vec();
-            text.push(0); // add null
-
-            PCSTRWrapper {
-                text: PCSTR(text.as_ptr()),
-                _container: text, // data lifetime management
-            }
+    impl ToPCWSTR for &str {
+        fn to_pcwstr(&self) -> PCWSTR {
+            PCWSTR(HSTRING::from(*self).as_ptr())
         }
     }
 
-    impl ToPCSTRWrapper for PCSTR {
-        fn to_pcstr(&self) -> PCSTRWrapper {
-            PCSTRWrapper {
-                text: *self,
-                _container: Vec::new(),
-            }
+    impl ToPCWSTR for String {
+        fn to_pcwstr(&self) -> PCWSTR {
+            PCWSTR(HSTRING::from(self).as_ptr())
         }
     }
 
@@ -110,14 +72,13 @@ pub mod convert_str {
 }
 
 pub mod wrap_windows_api {
-    use core::fmt;
-    use std::{ffi::c_void, mem::size_of, process};
-
-    use crate::convert_str::{ToPCSTRWrapper, ToPCWSTRWrapper};
+    use crate::convert_str::{ToPCSTR, ToPCWSTR};
     #[cfg(feature = "DEBUG_MODE")]
     use crate::utils::log::*;
+    use core::fmt;
+    use std::{ffi::c_void, mem::size_of, process};
     use windows::{
-        core::PCWSTR,
+        core::{HSTRING, PCWSTR},
         imp::{GetProcAddress, LoadLibraryA},
         Win32::{
             Foundation::{
@@ -147,10 +108,10 @@ pub mod wrap_windows_api {
             UI::{
                 Shell::ShellExecuteW,
                 WindowsAndMessaging::{
-                    GetMessageA, GetSystemMetrics, LoadIconA, MessageBoxA, RegisterClassExA,
-                    SetWindowsHookExA, UnhookWindowsHookEx, HHOOK, HICON, HOOKPROC,
-                    MESSAGEBOX_RESULT, MESSAGEBOX_STYLE, MSG, SHOW_WINDOW_CMD,
-                    SYSTEM_METRICS_INDEX, WINDOWS_HOOK_ID, WNDCLASSEXA,
+                    GetMessageA, GetSystemMetrics, MessageBoxA, RegisterClassExA,
+                    SetWindowsHookExA, UnhookWindowsHookEx, HHOOK, HOOKPROC, MESSAGEBOX_RESULT,
+                    MESSAGEBOX_STYLE, MSG, SHOW_WINDOW_CMD, SYSTEM_METRICS_INDEX, WINDOWS_HOOK_ID,
+                    WNDCLASSEXA,
                 },
             },
         },
@@ -188,14 +149,14 @@ pub mod wrap_windows_api {
 
     pub fn lstrcmp_w<T, U>(str1: T, str2: U) -> bool
     where
-        T: ToPCWSTRWrapper,
-        U: ToPCWSTRWrapper,
+        T: AsRef<HSTRING>,
+        U: AsRef<HSTRING>,
     {
         unsafe {
-            let str1 = str1.to_pcwstr();
-            let str2 = str2.to_pcwstr();
+            let str1 = str1.as_ref();
+            let str2 = str2.as_ref();
 
-            let cmp = lstrcmpW(*str1, *str2);
+            let cmp = lstrcmpW(str1, str2);
 
             cmp != 0
         }
@@ -308,13 +269,11 @@ pub mod wrap_windows_api {
         utype: MESSAGEBOX_STYLE,
     ) -> Result<MESSAGEBOX_RESULT, WinError>
     where
-        T: ToPCSTRWrapper,
-        U: ToPCSTRWrapper,
+        T: ToPCSTR,
+        U: ToPCSTR,
     {
-        let lptext = *lptext.to_pcstr();
-        let lpcaption = *lpcaption.to_pcstr();
         unsafe {
-            match MessageBoxA(hwnd, lptext, lpcaption, utype) {
+            match MessageBoxA(hwnd, lptext.to_pcstr(), lpcaption.to_pcstr(), utype) {
                 MESSAGEBOX_RESULT(0) => {
                     #[cfg(feature = "DEBUG_MODE")]
                     write_log(
@@ -351,11 +310,10 @@ pub mod wrap_windows_api {
 
     pub fn wrap_load_library_a<T>(name: T) -> Result<HMODULE, WinError>
     where
-        T: ToPCSTRWrapper,
+        T: ToPCSTR,
     {
-        let name = *name.to_pcstr();
         unsafe {
-            match LoadLibraryA(name) {
+            match LoadLibraryA(name.to_pcstr()) {
                 0 => {
                     #[cfg(feature = "DEBUG_MODE")]
                     write_log(
@@ -372,11 +330,10 @@ pub mod wrap_windows_api {
 
     pub fn wrap_get_proc_address<T>(library: HMODULE, name: T) -> Result<*const c_void, WinError>
     where
-        T: ToPCSTRWrapper,
+        T: ToPCSTR,
     {
-        let name = *name.to_pcstr();
         unsafe {
-            let ret = GetProcAddress(library.0, name);
+            let ret = GetProcAddress(library.0, name.to_pcstr());
             if ret.is_null() {
                 #[cfg(feature = "DEBUG_MODE")]
                 write_log(
@@ -396,15 +353,13 @@ pub mod wrap_windows_api {
 
     pub fn set_privilege<T>(lpsz_privilege: T, b_enabl_privilege: bool) -> Result<bool, WinError>
     where
-        T: ToPCWSTRWrapper,
+        T: ToPCWSTR,
     {
-        let lpsz_privilege = *lpsz_privilege.to_pcwstr();
-
         let mut h_token = HANDLE::default();
         let mut tp: TOKEN_PRIVILEGES = Default::default();
         let mut luid: LUID = Default::default();
 
-        let lpv = unsafe { LookupPrivilegeValueW(PCWSTR::null(), lpsz_privilege, &mut luid) };
+        let lpv = unsafe { LookupPrivilegeValueW(PCWSTR::null(), lpsz_privilege.to_pcwstr(), &mut luid) };
         let opt = unsafe {
             OpenProcessToken(
                 GetCurrentProcess(),
@@ -552,17 +507,20 @@ pub mod wrap_windows_api {
         nshowcmd: SHOW_WINDOW_CMD,
     ) -> Result<HMODULE, WinError>
     where
-        P1: ToPCWSTRWrapper,
-        P2: ToPCWSTRWrapper,
-        P3: ToPCWSTRWrapper,
-        P4: ToPCWSTRWrapper,
+        P1: ToPCWSTR,
+        P2: ToPCWSTR,
+        P3: ToPCWSTR,
+        P4: ToPCWSTR,
     {
-        let p1 = *lpoperation.to_pcwstr();
-        let p2 = *lpfile.to_pcwstr();
-        let p3 = *lpparameters.to_pcwstr();
-        let p4 = *lpdirectory.to_pcwstr();
         unsafe {
-            let res = ShellExecuteW(hwnd, p1, p2, p3, p4, nshowcmd);
+            let res = ShellExecuteW(
+                hwnd,
+                lpoperation.to_pcwstr(),
+                lpfile.to_pcwstr(),
+                lpparameters.to_pcwstr(),
+                lpdirectory.to_pcwstr(),
+                nshowcmd,
+            );
 
             match res {
                 HMODULE(0..=31) => {
@@ -616,12 +574,11 @@ pub mod wrap_windows_api {
         htemplatefile: HANDLE,
     ) -> Option<HANDLE>
     where
-        T: ToPCSTRWrapper,
+        T: ToPCSTR,
     {
-        let lpfilename = *lpfilename.to_pcstr();
         unsafe {
             match CreateFileA(
-                lpfilename,
+                lpfilename.to_pcstr(),
                 dwdesiredaccess.0,
                 dwsharemode,
                 lpsecurityattributes,
@@ -658,34 +615,6 @@ pub mod wrap_windows_api {
                         ),
                     );
                     None
-                }
-            }
-        }
-    }
-
-    pub fn wrap_load_icon_a<T>(hinstance: HMODULE, lpiconname: T) -> windows::core::Result<HICON>
-    where
-        T: ToPCSTRWrapper,
-    {
-        let lpiconname = *lpiconname.to_pcstr();
-        unsafe {
-            match LoadIconA(hinstance, lpiconname) {
-                Ok(v) => {
-                    #[cfg(feature = "DEBUG_MODE")]
-                    write_log(LogType::INFO, LogLocation::ALL, "SUCCESS LoadIconA()");
-                    Ok(v)
-                }
-                Err(e) => {
-                    #[cfg(feature = "DEBUG_MODE")]
-                    write_log(
-                        LogType::ERROR,
-                        LogLocation::ALL,
-                        &format!(
-                            "Failed LoadIconA()\n{e}\nGetLastError: {:?}",
-                            GetLastError()
-                        ),
-                    );
-                    Err(e)
                 }
             }
         }
